@@ -1399,6 +1399,51 @@ void read_particles_from_file(File inputFile)
 
 
 
+#if HDF5IO
+/*! \brief
+  Create a compressed HDF5 dataset with chunking and GZIP compression.
+  \param file_id HDF5 file identifier
+  \param name dataset name
+  \param type HDF5 data type
+  \param space_id dataspace identifier
+  \param dims array of dimensions
+  \param ndims number of dimensions
+  \return dataset identifier
+*/
+hid_t create_compressed_dataset(hid_t file_id, const char* name, hid_t type, hid_t space_id,
+                               const hsize_t* dims, int ndims) {
+    hid_t plist_id, dataset_id;
+    hsize_t chunk_dims[2];
+
+    // Create dataset creation property list
+    plist_id = H5Pcreate(H5P_DATASET_CREATE);
+
+    // Set up chunking - required for compression // maybe play around with these values
+    if (ndims == 1) {
+        chunk_dims[0] = (dims[0] > 1024) ? 1024 : dims[0];
+    } else if (ndims == 2) {
+        chunk_dims[0] = (dims[0] > 256) ? 256 : dims[0];
+        chunk_dims[1] = dims[1];
+    }
+    H5Pset_chunk(plist_id, ndims, chunk_dims);
+
+    // shuffle filter first to get better compression later with gzip
+    H5Pset_shuffle(plist_id);
+
+    // gzip compression (0 to 9, try 6 first)
+    H5Pset_deflate(plist_id, 6);
+
+    // Create the dataset
+    dataset_id = H5Dcreate2(file_id, name, type, space_id, H5P_DEFAULT, plist_id, H5P_DEFAULT);
+
+    // Clean up property list
+    H5Pclose(plist_id);
+
+    return dataset_id;
+}
+#endif
+
+
 void write_particles_to_file(File file) {
 
     char h5filename[256];
@@ -1973,7 +2018,7 @@ void write_particles_to_file(File file) {
 
 #if HDF5IO
     if (param.hdf5output) {
-        fprintf(stdout, "Writing output file %s.h5...\n", file.name);
+        fprintf(stdout, "Writing compressed output file %s.h5...\n", file.name);
 
         file_id = H5Fcreate(h5filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -1981,17 +2026,14 @@ void write_particles_to_file(File file) {
         dims[0] = numberOfParticles;
         dims[1] = DIM;
         dataspace_id =  H5Screate_simple(2, dims, NULL);
-        x_id = H5Dcreate2(file_id, "/x", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        v_id = H5Dcreate2(file_id, "/v", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        a_id = H5Dcreate2(file_id, "/a", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        g_a_id = H5Dcreate2(file_id, "/a_grav", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //x_id = H5Dcreate2(file_id, "/x", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //v_id = H5Dcreate2(file_id, "/v", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //a_id = H5Dcreate2(file_id, "/a", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //g_a_id = H5Dcreate2(file_id, "/a_grav", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        x_id = create_compressed_dataset(file_id, "/x", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
+        v_id = create_compressed_dataset(file_id, "/v", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
+        a_id = create_compressed_dataset(file_id, "/a", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
+        g_a_id = create_compressed_dataset(file_id, "/a_grav", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
 
 
         x = (double *) malloc(sizeof(double) * numberOfParticles * DIM);
@@ -2079,8 +2121,8 @@ void write_particles_to_file(File file) {
         dims[0] = numberOfParticles;
         dims[1] = 1;
         dataspace_id = H5Screate_simple(1, dims, NULL);
-        m_id = H5Dcreate2(file_id, "/m", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        m_id = create_compressed_dataset(file_id, "/m", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+        // m_id = H5Dcreate2(file_id, "/m", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.m[i];
@@ -2089,8 +2131,9 @@ void write_particles_to_file(File file) {
         status = H5Dclose(m_id);
 
         /* density */
-        rho_id = H5Dcreate2(file_id, "/rho", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // rho_id = H5Dcreate2(file_id, "/rho", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        rho_id = create_compressed_dataset(file_id, "/rho", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.rho[i];
 
@@ -2098,8 +2141,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(rho_id);
 
         /* energy */
-        e_id = H5Dcreate2(file_id, "/e", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        e_id = create_compressed_dataset(file_id, "/e", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+        // e_id = H5Dcreate2(file_id, "/e", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.e[i];
 
@@ -2131,20 +2174,20 @@ void write_particles_to_file(File file) {
             }
         }
         // write them to the output file
-        aneos_T_id = H5Dcreate2(file_id, "/aneos_T", H5T_NATIVE_DOUBLE, dataspace_id,
-                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // aneos_T_id = H5Dcreate2(file_id, "/aneos_T", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        aneos_T_id = create_compressed_dataset(file_id, "/aneos_T", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         status = H5Dwrite(aneos_T_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x_aneos_T);
         status = H5Dclose(aneos_T_id);
-        aneos_cs_id = H5Dcreate2(file_id, "/aneos_cs", H5T_NATIVE_DOUBLE, dataspace_id,
-                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // aneos_cs_id = H5Dcreate2(file_id, "/aneos_cs", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        aneos_cs_id = create_compressed_dataset(file_id, "/aneos_cs", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         status = H5Dwrite(aneos_cs_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x_aneos_cs);
         status = H5Dclose(aneos_cs_id);
-        aneos_entropy_id = H5Dcreate2(file_id, "/aneos_entropy", H5T_NATIVE_DOUBLE, dataspace_id,
-                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // aneos_entropy_id = H5Dcreate2(file_id, "/aneos_entropy", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        aneos_entropy_id = create_compressed_dataset(file_id, "/aneos_entropy", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         status = H5Dwrite(aneos_entropy_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x_aneos_entropy);
         status = H5Dclose(aneos_entropy_id);
-        aneos_phase_flag_id = H5Dcreate2(file_id, "/aneos_phase_flag", H5T_NATIVE_INT, dataspace_id,
-                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // aneos_phase_flag_id = H5Dcreate2(file_id, "/aneos_phase_flag", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        aneos_phase_flag_id = create_compressed_dataset(file_id, "/aneos_phase_flag", H5T_NATIVE_INT, dataspace_id, dims, 1);
         status = H5Dwrite(aneos_phase_flag_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, x_aneos_phase_flag);
         status = H5Dclose(aneos_phase_flag_id);
 
@@ -2155,8 +2198,9 @@ void write_particles_to_file(File file) {
         free(x_aneos_phase_flag);
 #endif
 #if MORE_OUTPUT
-	p_max_id = H5Dcreate2(file_id, "/p_max", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	    // p_max_id = H5Dcreate2(file_id, "/p_max", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        p_max_id = create_compressed_dataset(file_id, "/p_max", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.p_max[i];
 
@@ -2164,8 +2208,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(p_max_id);
 
 
-	p_min_id = H5Dcreate2(file_id, "/p_min", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	    // p_min_id = H5Dcreate2(file_id, "/p_min", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        p_min_id = create_compressed_dataset(file_id, "/p_min", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.p_min[i];
 
@@ -2173,8 +2217,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(p_min_id);
 
 
-	rho_min_id = H5Dcreate2(file_id, "/rho_min", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	   // rho_min_id = H5Dcreate2(file_id, "/rho_min", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        rho_min_id = create_compressed_dataset(file_id, "/rho_min", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.rho_min[i];
 
@@ -2182,16 +2226,16 @@ void write_particles_to_file(File file) {
         status = H5Dclose(rho_min_id);
 
 
-	rho_max_id = H5Dcreate2(file_id, "/rho_max", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // rho_max_id = H5Dcreate2(file_id, "/rho_max", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        rho_max_id = create_compressed_dataset(file_id, "/rho_max", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.rho_max[i];
 
         status = H5Dwrite(rho_max_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x);
         status = H5Dclose(rho_max_id);
 
-	e_min_id = H5Dcreate2(file_id, "/e_min", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // e_min_id = H5Dcreate2(file_id, "/e_min", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        e_min_id = create_compressed_dataset(file_id, "/e_min", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.e_min[i];
 
@@ -2199,16 +2243,18 @@ void write_particles_to_file(File file) {
         status = H5Dclose(e_min_id);
 
 
-	e_max_id = H5Dcreate2(file_id, "/e_max", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // e_max_id = H5Dcreate2(file_id, "/e_max", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        e_max_id = create_compressed_dataset(file_id, "/e_max", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.e_max[i];
 
         status = H5Dwrite(e_max_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x);
         status = H5Dclose(e_max_id);
 
-	cs_min_id = H5Dcreate2(file_id, "/cs_min", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // cs_min_id = H5Dcreate2(file_id, "/cs_min", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        cs_min_id = create_compressed_dataset(file_id, "/cs_min", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.cs_min[i];
 
@@ -2216,8 +2262,9 @@ void write_particles_to_file(File file) {
         status = H5Dclose(cs_min_id);
 
 
-	cs_max_id = H5Dcreate2(file_id, "/cs_max", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // cs_max_id = H5Dcreate2(file_id, "/cs_max", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        cs_max_id = create_compressed_dataset(file_id, "/cs_max", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.cs_max[i];
 
@@ -2227,8 +2274,8 @@ void write_particles_to_file(File file) {
 #endif
 
         /* sml */
-        sml_id = H5Dcreate2(file_id, "/sml", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // sml_id = H5Dcreate2(file_id, "/sml", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        sml_id = create_compressed_dataset(file_id, "/sml", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++) {
 #if (VARIABLE_SML || INTEGRATE_SML || DEAL_WITH_TOO_MANY_INTERACTIONS || READ_INITIAL_SML_FROM_PARTICLE_FILE)
             x[i] = p_host.h[i];
@@ -2241,8 +2288,9 @@ void write_particles_to_file(File file) {
         status = H5Dclose(sml_id);
 #if READ_INITIAL_SML_FROM_PARTICLE_FILE
         /* sml initial */
-        sml_id = H5Dcreate2(file_id, "/sml_initial", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //sml_id = H5Dcreate2(file_id, "/sml_initial", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        sml_id = create_compressed_dataset(file_id, "/sml_initial", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++) {
             x[i] = p_host.h0[i];
         }
@@ -2253,8 +2301,9 @@ void write_particles_to_file(File file) {
 
 #if JC_PLASTICITY
         /* plastic strain */
-        ep_id = H5Dcreate2(file_id, "/ep", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // ep_id = H5Dcreate2(file_id, "/ep", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        ep_id = create_compressed_dataset(file_id, "/ep", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.ep[i];
 
@@ -2262,8 +2311,9 @@ void write_particles_to_file(File file) {
         status = H5Dclose(ep_id);
 
         /* temperature */
-        T_id = H5Dcreate2(file_id, "/T", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // T_id = H5Dcreate2(file_id, "/T", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        T_id = create_compressed_dataset(file_id, "/T", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.T[i];
 
@@ -2276,8 +2326,9 @@ void write_particles_to_file(File file) {
         /* number of interactions */
         ix = (int *) malloc(sizeof(int) * numberOfParticles);
 
-        noi_id = H5Dcreate2(file_id, "/number_of_interactions", H5T_NATIVE_INT, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+//        noi_id = H5Dcreate2(file_id, "/number_of_interactions", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        noi_id = create_compressed_dataset(file_id, "/number_of_interactions", H5T_NATIVE_INT, dataspace_id, dims, 1);
+
 
         for (i = 0; i < numberOfParticles; i++)
             ix[i] = p_host.noi[i];
@@ -2286,8 +2337,9 @@ void write_particles_to_file(File file) {
         status = H5Dclose(noi_id);
 
         /* material type */
-        mtype_id = H5Dcreate2(file_id, "/material_type", H5T_NATIVE_INT, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+//        mtype_id = H5Dcreate2(file_id, "/material_type", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        mtype_id = create_compressed_dataset(file_id, "/material_type", H5T_NATIVE_INT, dataspace_id, dims, 1);
+
 
         for (i = 0; i < numberOfParticles; i++)
             ix[i] = p_host.materialId[i];
@@ -2297,8 +2349,8 @@ void write_particles_to_file(File file) {
 
 
         /* pressure */
-        p_id = H5Dcreate2(file_id, "/p", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //p_id = H5Dcreate2(file_id, "/p", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        p_id = create_compressed_dataset(file_id, "/p", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.p[i];
 
@@ -2308,8 +2360,8 @@ void write_particles_to_file(File file) {
 
 #if PALPHA_POROSITY
         /* alpha_jutzi */
-        alpha_id = H5Dcreate2(file_id, "/alpha_jutzi", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // alpha_id = H5Dcreate2(file_id, "/alpha_jutzi", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        alpha_id = create_compressed_dataset(file_id, "/alpha_jutzi", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.alpha_jutzi[i];
 
@@ -2318,8 +2370,8 @@ void write_particles_to_file(File file) {
 
 #endif
         /* soundspeed */
-        cs_id = H5Dcreate2(file_id, "/soundspeed", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // cs_id = H5Dcreate2(file_id, "/soundspeed", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        cs_id = create_compressed_dataset(file_id, "/soundspeed", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.cs[i];
 
@@ -2328,8 +2380,8 @@ void write_particles_to_file(File file) {
 
 #if SIRONO_POROSITY
         /* compressive strength */
-        compressive_strength_id = H5Dcreate2(file_id, "/compressive_strength", H5T_NATIVE_DOUBLE, dataspace_id,
-                                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // compressive_strength_id = H5Dcreate2(file_id, "/compressive_strength", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        compressive_strength_id = create_compressed_dataset(file_id, "/compressive_strength", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.compressive_strength[i];
 
@@ -2337,8 +2389,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(compressive_strength_id);
 
         /* tensile strength */
-        tensile_strength_id = H5Dcreate2(file_id, "/tensile_strength", H5T_NATIVE_DOUBLE, dataspace_id,
-                                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // tensile_strength_id = H5Dcreate2(file_id, "/tensile_strength", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        tensile_strength_id = create_compressed_dataset(file_id, "/tensile_strength", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.tensile_strength[i];
 
@@ -2346,8 +2398,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(tensile_strength_id);
 
         /* bulk modulus */
-        K_id = H5Dcreate2(file_id, "/K", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //K_id = H5Dcreate2(file_id, "/K", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        K_id = create_compressed_dataset(file_id, "/K", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.K[i];
 
@@ -2355,8 +2407,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(K_id);
 
         /* density_0prime */
-        rho_0prime_id = H5Dcreate2(file_id, "/rho_0prime", H5T_NATIVE_DOUBLE, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //rho_0prime_id = H5Dcreate2(file_id, "/rho_0prime", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        rho_0prime_id = create_compressed_dataset(file_id, "/rho_0prime", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.rho_0prime[i];
 
@@ -2364,8 +2416,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(rho_0prime_id);
 
         /* density_c_plus */
-        rho_c_plus_id = H5Dcreate2(file_id, "/rho_c_plus", H5T_NATIVE_DOUBLE, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //rho_c_plus_id = H5Dcreate2(file_id, "/rho_c_plus", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        rho_c_plus_id = create_compressed_dataset(file_id, "/rho_c_plus", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.rho_c_plus[i];
 
@@ -2373,8 +2425,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(rho_c_plus_id);
 
         /* density_c_minus */
-        rho_c_minus_id = H5Dcreate2(file_id, "rho_c_minus", H5T_NATIVE_DOUBLE, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // rho_c_minus_id = H5Dcreate2(file_id, "rho_c_minus", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        rho_c_minus_id = create_compressed_dataset(file_id, "/rho_c_minus", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.rho_c_minus[i];
 
@@ -2382,8 +2434,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(rho_c_minus_id);
 
         /* flag_rho0_prime */
-        flag_rho_0prime_id = H5Dcreate2(file_id, "/flag_rho_0prime", H5T_NATIVE_INT, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //flag_rho_0prime_id = H5Dcreate2(file_id, "/flag_rho_0prime", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        flag_rho_0prime_id = create_compressed_dataset(file_id, "/flag_rho_0prime", H5T_NATIVE_INT, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             ix[i] = p_host.flag_rho_0prime[i];
 
@@ -2391,8 +2443,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(flag_rho_0prime_id);
 
         /* flag_plastic */
-        flag_plastic_id = H5Dcreate2(file_id, "/flag_plastic", H5T_NATIVE_INT, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //flag_plastic_id = H5Dcreate2(file_id, "/flag_plastic", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        flag_plastic_id = create_compressed_dataset(file_id, "/flag_plastic", H5T_NATIVE_INT, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             ix[i] = p_host.flag_plastic[i];
 
@@ -2400,8 +2452,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(flag_plastic_id);
 
         /* shear_strength */
-        shear_strength_id = H5Dcreate2(file_id, "shear_strength", H5T_NATIVE_DOUBLE, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // shear_strength_id = H5Dcreate2(file_id, "/shear_strength", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        shear_strength_id = create_compressed_dataset(file_id, "/shear_strength", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.shear_strength[i];
 
@@ -2411,8 +2463,8 @@ void write_particles_to_file(File file) {
 
 #if EPSALPHA_POROSITY
         /* alpha_epspor */
-        alpha_epspor_id = H5Dcreate2(file_id, "/alpha_epspor", H5T_NATIVE_DOUBLE, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //alpha_epspor_id = H5Dcreate2(file_id, "/alpha_epspor", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        alpha_epspor_id = create_compressed_dataset(file_id, "/alpha_epspor", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.alpha_epspor[i];
 
@@ -2420,8 +2472,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(alpha_epspor_id);
 
         /* epsilon_v */
-        epsilon_v_id = H5Dcreate2(file_id, "/epsilon_v", H5T_NATIVE_DOUBLE, dataspace_id,
-                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //epsilon_v_id = H5Dcreate2(file_id, "/epsilon_v", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        epsilon_v_id = create_compressed_dataset(file_id, "/epsilon_v", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.epsilon_v[i];
 
@@ -2431,8 +2483,9 @@ void write_particles_to_file(File file) {
 
 #if FRAGMENTATION
         /* number of activated flaws */
-        noaf_id = H5Dcreate2(file_id, "/number_of_activated_flaws", H5T_NATIVE_INT, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //noaf_id = H5Dcreate2(file_id, "/number_of_activated_flaws", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        noaf_id = create_compressed_dataset(file_id, "/number_of_activated_flaws", H5T_NATIVE_INT, dataspace_id, dims, 1);
+
 
         for (i = 0; i < numberOfParticles; i++)
             ix[i] = p_host.numActiveFlaws[i];
@@ -2441,8 +2494,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(noaf_id);
 
         /* damage */
-        damage_id = H5Dcreate2(file_id, "/DIM_root_of_damage_tensile", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // damage_id = H5Dcreate2(file_id, "/DIM_root_of_damage_tensile", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        damage_id = create_compressed_dataset(file_id, "/DIM_root_of_damage_tensile", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.d[i];
 
@@ -2451,8 +2504,8 @@ void write_particles_to_file(File file) {
 
 # if PALPHA_POROSITY
         /* damage porjutzi */
-        damage_porjutzi_id = H5Dcreate2(file_id, "/DIM_root_of_damage_porjutzi", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //damage_porjutzi_id = H5Dcreate2(file_id, "/DIM_root_of_damage_porjutzi", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        damage_porjutzi_id = create_compressed_dataset(file_id, "/DIM_root_of_damage_porjutzi", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.damage_porjutzi[i];
 
@@ -2460,7 +2513,8 @@ void write_particles_to_file(File file) {
         status = H5Dclose(damage_porjutzi_id);
 
         /* damage total */
-        damage_total_id = H5Dcreate2(file_id, "/damage_total", H5T_NATIVE_DOUBLE, dataspace_id,
+        // damage_total_id = H5Dcreate2(file_id, "/damage_total", H5T_NATIVE_DOUBLE, dataspace_id,
+        damage_total_id = create_compressed_dataset(file_id, "/damage_total_porjutzi", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         for (i = 0; i < numberOfParticles; i++) {
             x[i] = pow(p_host.damage_porjutzi[i], DIM) + pow(p_host.d[i], DIM);
@@ -2482,8 +2536,7 @@ void write_particles_to_file(File file) {
         /* write maximum number of flaws */
         dims[0] = 1;
         dataspace_id = H5Screate_simple(1, dims, NULL);
-        maxnof_id = H5Dcreate2(file_id, "/maximum_number_of_flaws", H5T_NATIVE_INT, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        maxnof_id = H5Dcreate2(file_id, "/maximum_number_of_flaws", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         status = H5Dwrite(maxnof_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &maxnof);
         status = H5Dclose(maxnof_id);
 
@@ -2496,8 +2549,9 @@ void write_particles_to_file(File file) {
 # endif
             dataspace_id = H5Screate_simple(2, dims, NULL);
 
-            activation_thresholds_id = H5Dcreate2(file_id, "/activation_thresholds", H5T_NATIVE_DOUBLE, dataspace_id,
-                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            // activation_thresholds_id = H5Dcreate2(file_id, "/activation_thresholds", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            //activation_thresholds_id = H5Dcreate2(file_id, "/activation_thresholds", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            activation_thresholds_id = create_compressed_dataset(file_id, "/activation_thresholds", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
             free(x);
             x = (double *) malloc(sizeof(double) * numberOfParticles * maxnof);
 
@@ -2522,8 +2576,8 @@ void write_particles_to_file(File file) {
         dims[1] = DIM*DIM;
 
         dataspace_id = H5Screate_simple(2, dims, NULL);
-        S_id = H5Dcreate2(file_id, "/deviatoric_stress", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // S_id = H5Dcreate2(file_id, "/deviatoric_stress", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        S_id = create_compressed_dataset(file_id, "/deviatoric_stress", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
         for (i = 0; i < numberOfParticles; i++) {
             for (d = 0; d < DIM; d++) {
                 for (e = 0; e < DIM; e++) {
@@ -2543,8 +2597,8 @@ void write_particles_to_file(File file) {
         dims[1] = DIM*DIM;
 
         dataspace_id = H5Screate_simple(2, dims, NULL);
-        Tshear_id = H5Dcreate2(file_id, "/viscous_shear_stress", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //Tshear_id = H5Dcreate2(file_id, "/viscous_shear_stress", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        Tshear_id = create_compressed_dataset(file_id, "/viscous_shear_stress", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
         for (i = 0; i < numberOfParticles; i++) {
             for (d = 0; d < DIM; d++) {
                 for (e = 0; e < DIM; e++) {
@@ -2567,8 +2621,8 @@ void write_particles_to_file(File file) {
         dims[1] = DIM*DIM;
 
         dataspace_id = H5Screate_simple(2, dims, NULL);
-        dSdt_id = H5Dcreate2(file_id, "/ddeviatoric_stress_dt", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //dSdt_id = H5Dcreate2(file_id, "/ddeviatoric_stress_dt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dSdt_id = create_compressed_dataset(file_id, "/deviatoric_stress_dt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 2);
         for (i = 0; i < numberOfParticles; i++) {
             for (d = 0; d < DIM; d++) {
                 for (e = 0; e < DIM; e++) {
@@ -2585,8 +2639,8 @@ void write_particles_to_file(File file) {
         dataspace_id = H5Screate_simple(1, dims, NULL);
         /* depth in tree */
         ix = (int *) malloc(sizeof(int) * numberOfParticles);
-        depth_id = H5Dcreate2(file_id, "/tree_depth", H5T_NATIVE_INT, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // depth_id = H5Dcreate2(file_id, "/tree_depth", H5T_NATIVE_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        depth_id = create_compressed_dataset(file_id, "/tree_depth", H5T_NATIVE_INT, dataspace_id, dims, 1);
 
         for (i = 0; i < numberOfParticles; i++)
             ix[i] = p_host.depth[i];
@@ -2600,8 +2654,8 @@ void write_particles_to_file(File file) {
 #if INTEGRATE_DENSITY
         /* change of density */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        drhodt_id = H5Dcreate2(file_id, "/drhodt", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // drhodt_id = H5Dcreate2(file_id, "/drhodt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        drhodt_id = create_compressed_dataset(file_id, "/drhodt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.drhodt[i];
 
@@ -2612,8 +2666,8 @@ void write_particles_to_file(File file) {
 #if SOLID
         /* local strain */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        local_strain_id = H5Dcreate2(file_id, "/local_strain", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // local_strain_id = H5Dcreate2(file_id, "/local_strain", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        local_strain_id = create_compressed_dataset(file_id, "/local_strain", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.local_strain[i];
 
@@ -2624,8 +2678,8 @@ void write_particles_to_file(File file) {
 
         /* total plastic strain */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        ep_id = H5Dcreate2(file_id, "/total_plastic_strain", H5T_NATIVE_DOUBLE, dataspace_id,
-                                     H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // ep_id = H5Dcreate2(file_id, "/total_plastic_strain", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        ep_id = create_compressed_dataset(file_id, "/total_plastic_strain", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.ep[i];
 
@@ -2637,8 +2691,8 @@ void write_particles_to_file(File file) {
 #if INTEGRATE_ENERGY
         /* change of energy */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        dedt_id = H5Dcreate2(file_id, "/dedt", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // dedt_id = H5Dcreate2(file_id, "/dedt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dedt_id = create_compressed_dataset(file_id, "/dedt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.dedt[i];
 
@@ -2650,8 +2704,8 @@ void write_particles_to_file(File file) {
 #if FRAGMENTATION
         /* change of damage */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        dddt_id = H5Dcreate2(file_id, "/dddt", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        //dddt_id = H5Dcreate2(file_id, "/dddt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dddt_id = create_compressed_dataset(file_id, "/dddt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.dddt[i];
 
@@ -2661,8 +2715,8 @@ void write_particles_to_file(File file) {
 # if PALPHA_POROSITY
         /* change of damage porjutzi */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        ddamage_porjutzidt_id = H5Dcreate2(file_id, "/ddamage_porjutzidt", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // ddamage_porjutzidt_id = H5Dcreate2(file_id, "/ddamage_porjutzidt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        ddamage_porjutzidt_id = create_compressed_dataset(file_id, "/ddamage_porjutzidt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.ddamage_porjutzidt[i];
 
@@ -2675,8 +2729,8 @@ void write_particles_to_file(File file) {
 #if PALPHA_POROSITY
         /* change of alpha_jutzi */
         x = (double *) malloc(sizeof(double) * numberOfParticles);
-        dalphadt_id = H5Dcreate2(file_id, "/dalphadt", H5T_NATIVE_DOUBLE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        // dalphadt_id = H5Dcreate2(file_id, "/dalphadt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dalphadt_id = create_compressed_dataset(file_id, "/dalphadt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
         for (i = 0; i < numberOfParticles; i++)
             x[i] = p_host.dalphadt[i];
 

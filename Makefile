@@ -9,12 +9,12 @@ GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
 CUDA_DIR    = $(HOME)/.conda/envs/miluphcuda
 NVCC   = $(CUDA_DIR)/bin/nvcc
 
-NVFLAGS  = -ccbin ${CC} -x cu -c -dc -O3 -Xcompiler "-O3 -pthread" -Wno-deprecated-gpu-targets -DVERSION=\"$(GIT_VERSION)\" --ptxas-options=-v
+NVFLAGS  = -ccbin ${CC} -x cu -c -dc -O3 -Xcompiler "-O3 -pthread -fPIE" -Wno-deprecated-gpu-targets -DVERSION=\"$(GIT_VERSION)\" --ptxas-options=-v
 GPU_ARCH = -arch=sm_90
 
 CUDA_LIB      = $(CUDA_DIR)
 INCLUDE_DIRS += -I$(CUDA_DIR)/include -I/usr/lib/openmpi/include -I/usr/include/hdf5/serial
-LDFLAGS      += -ccbin ${CC} -L$(CUDA_LIB)/lib -L$(CUDA_LIB)/lib64 -L/usr/lib/x86_64-linux-gnu/hdf5/serial \
+LDFLAGS      += -L$(CUDA_LIB)/lib -L$(CUDA_LIB)/lib64 -L/usr/lib/x86_64-linux-gnu/hdf5/serial \
 				-Xlinker -rpath -Xlinker $(CUDA_LIB)/lib -Xlinker -rpath -Xlinker $(CUDA_LIB)/lib64 -lcudart -lpthread -lconfig -lhdf5
 
 
@@ -54,7 +54,7 @@ LIBRARY_DIRS = -L$(LIB_DIR) -L$(HOME)/.conda/envs/miluphcuda/lib -L/usr/lib/x86_
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(NVCC) $(GPU_ARCH) $(OBJECTS) $(LDFLAGS) -Wno-deprecated-gpu-targets -o $@
+	$(NVCC) $(GPU_ARCH) $(OBJECTS) $(LDFLAGS) -o $@
 
 
 # Compile .c files into build/obj (works for src/ and lib/ subdirs)

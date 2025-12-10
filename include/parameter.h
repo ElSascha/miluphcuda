@@ -45,7 +45,7 @@
 
 // integrate the energy equation
 // when setting up a SOLID simulation with Tillotson or ANEOS, it must be set to 1
-#define INTEGRATE_ENERGY 1
+#define INTEGRATE_ENERGY 0
 
 // integrate the continuity equation
 // if set to 0, the density will be calculated using the standard SPH sum \sum_i m_j W_ij
@@ -59,7 +59,7 @@
 
 // damage model following Benz & Asphaug (1995)
 // this needs some preprocessing of the initial particle distribution since activation thresholds have to be distributed among the particles
-#define FRAGMENTATION 1
+#define FRAGMENTATION 0
 #define DAMAGE_ACTS_ON_S 0
 
 // Choose the SPH representation to solve the momentum and energy equation:
@@ -102,7 +102,7 @@
 //       in material.cfg you need:
 //          friction_angle =
 //          cohesion =
-#define DRUCKER_PRAGER_PLASTICITY 0
+#define DRUCKER_PRAGER_PLASTICITY 1
 //   (3) Mohr-Coulomb (MC) yield criterion
 //       -> yield strength is given by yield_stress = tan(friction_angle) \times pressure + cohesion
 //       in material.cfg you need:
@@ -162,9 +162,9 @@
 #define EPSALPHA_POROSITY 0
 
 // max number of activation thresholds per particle, only required for FRAGMENTATION, otherwise set to 1
-#define MAX_NUM_FLAWS 50
+#define MAX_NUM_FLAWS 1
 // maximum number of interactions per particle -> fixed array size
-#define MAX_NUM_INTERACTIONS 800
+#define MAX_NUM_INTERACTIONS 4000
 
 // if set to 1, the smoothing length is not fixed for each material type
 // choose either FIXED_NOI for a fixed number of interaction partners following
@@ -210,7 +210,7 @@
 #define HDF5IO 1    // use HDF5 (needs libhdf5-dev and libhdf5)
 #define MORE_OUTPUT 0   //produce additional output to HDF5 files (p_max, p_min, rho_max, rho_min); only ueful when HDF5IO is set
 #define MORE_ANEOS_OUTPUT 0 // produce additional output to HDF5 files (T, cs, entropy, phase-flag); only useful when HDF5IO is set; set only if you use the ANEOS eos, but currently not supported for porosity+ANEOS
-#define OUTPUT_GRAV_ENERGY 1    // compute and output gravitational energy (at times when output files are written); of all SPH particles (and also w.r.t. gravitating point masses and between them); direct particle-particle summation, not tree; option exists to control costly computation for high particle numbers
+#define OUTPUT_GRAV_ENERGY 0    // compute and output gravitational energy (at times when output files are written); of all SPH particles (and also w.r.t. gravitating point masses and between them); direct particle-particle summation, not tree; option exists to control costly computation for high particle numbers
 #define BINARY_INFO 0   // generates additional output file (binary_system.log) with info regarding binary system: semi-major axis, eccentricity if GRAVITATING_POINT_MASSES == 1
 
 #endif

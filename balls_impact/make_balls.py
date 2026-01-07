@@ -1,5 +1,8 @@
 '''Makes two spheres of constant particle density that slowly move to each other.
 See constants lower down to set specifics.'''
+# input Format:
+# 1:x[0] 2:x[1] 3:x[2] 4:v[0] 5:v[1] 6:v[2] 7:mass 8:density 9:energy 10:smoothing length 11:material type 12:S/sigma[0][0] 13:S/sigma[0][1] 14:S/sigma[0][2] 15:S/sigma[1][0] 16:S/sigma[1][1] 17:S/sigma[1][2] 18:S/sigma[2][0] 19:S/sigma[2][1] 20:S/sigma[2][2] 21:alpha_jutzi 22:pressure  
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -148,19 +151,29 @@ def points_to_particles(
     other properties (not counting default arguments of this function) are
     defaulted to 0.0.'''
     N = points.shape[-1]
-    p = np.zeros((24, N))
-    p[:3, :] = points
+    # Prepare array for 22 columns as per required format
+    p = np.zeros((22, N))
+    # 1-3: x[0], x[1], x[2]
+    p[0:3, :] = points
+    # 4-6: v[0], v[1], v[2]
     p[3:6, :] = np.repeat(velocity, N).reshape(3, N)
+    # 7: mass
     p[6, :] = mass
+    # 8: density
     p[7, :] = density
+    # 9: energy (set to 0.0)
+    # 10: smoothing length
     p[9, :] = h
-    p[22, :] = distention
+    # 11: material type (set to 0.0)
+    # 12-20: S/sigma[0][0] ... S/sigma[2][2] (set to 0.0)
+    p[20, :] = distention
+    # 22: pressure (set to 0.0)
     return p
 
 
 # units are SI unless otherwise specified
-AGGREGATE_RADIUS = 0.10 # 10 cm
-AGGREGATE_SHIFT = AGGREGATE_RADIUS * 2.0 # 200% of R distance between balls
+AGGREGATE_RADIUS = 0.50 # 10 cm
+AGGREGATE_SHIFT = AGGREGATE_RADIUS * 2.0 # 100% of R distance between balls
 POINT_DISTANCE = AGGREGATE_RADIUS / 4 # effect: 4 shells (but still ~isotropic distribution)
 
 NR_INTERACTIONS_NORMAL = 50 # in the middle of the aggregate, expect N interaction partners (10% of max=512)
@@ -171,7 +184,7 @@ RHO_0 = 2700.0 # monomer material density
 PARTICLE_DENSITY = RHO_0 / DISTENTION
 PARTICLE_MASS = PARTICLE_DENSITY * POINT_DISTANCE**3 # mass/particle = mass density / number density
 
-v = 1.0 # 100 cm/s = 1/ms
+v = 2.0 # 100 cm/s = 1/ms
 
 #print(AGGREGATE_RADIUS, POINT_DISTANCE, SMOOTHING_LENGTH, PARTICLE_DENSITY, PARTICLE_MASS)
 #make_ball_hcp(AGGREGATE_RADIUS, POINT_DISTANCE)
@@ -204,4 +217,4 @@ p = points_union([p_left, p_right])
 
 # output
 #print(p.shape)
-np.savetxt('stable_ball.data', p.T, delimiter='\t')
+np.savetxt('particles.0000', p.T, delimiter='\t')

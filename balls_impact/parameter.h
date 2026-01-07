@@ -63,7 +63,7 @@
 // The damage acts always on pressure, but only on deviator stresses if DAMAGE_ACTS_ON_S is
 // activated too, which is an important switch depending on the plasticity model (see comments there).
 // Note: The damage model needs distribution of activation thresholds in the input file.
-#define FRAGMENTATION 1
+#define FRAGMENTATION 0
 #define DAMAGE_ACTS_ON_S 0
 
 // Choose the SPH representation to solve the momentum and energy equation:

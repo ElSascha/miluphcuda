@@ -24,4 +24,4 @@ module load lib/hdf5/1.12-gnu-11.4
 
 # run the code
 
-nice -15 ../build/bin/miluphcuda -v -A -f particles.0000 -g -H -I rk2_adaptive -m material.cfg -n 100 -M 0.01 -t 0.01 >> output.txt 2> error.txt
+nice -15 ../build/bin/miluphcuda -v -A -f particles.0000 -g -H -k wendlandc4 -I rk2_adaptive -m material.cfg -n 100 -M 0.001 -t 0.01 >> output.txt 2> error.txt

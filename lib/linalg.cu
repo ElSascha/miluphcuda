@@ -335,3 +335,107 @@ __device__ int invertMatrix(double *m, double *inverted) {
 
     return 1;
 }
+
+__device__ void symmetrizeMatrix(double A[DIM][DIM]) {
+    for (int i = 0; i < DIM; ++i)
+        for (int j = i + 1; j < DIM; ++j) {
+            double s = 0.5 * (A[i][j] + A[j][i]);
+            A[i][j] = s;
+            A[j][i] = s;
+        }
+}
+
+__device__ void computeLtL(double L[DIM][DIM], double M[DIM][DIM]) {
+    for (int i = 0; i < DIM; ++i)
+        for (int j = 0; j < DIM; ++j) {
+            M[i][j] = 0.0;
+            for (int k = 0; k < DIM; ++k)
+                M[i][j] += L[k][i] * L[k][j];
+        }
+}
+
+__device__ int invertMatrixSVD(double *Lflat, double *Linvflat)
+{
+    double L[DIM][DIM];
+    double M[DIM][DIM];
+    double V[DIM][DIM];
+    double U[DIM][DIM];
+    double evals[DIM];
+    double sigma[DIM];
+    double sigma_inv[DIM];
+
+    // ----------------------------
+    // Load L
+    // ----------------------------
+    for (int i = 0; i < DIM; ++i)
+        for (int j = 0; j < DIM; ++j)
+            L[i][j] = Lflat[i*DIM + j];
+
+    // ----------------------------
+    // Symmetrize 
+    // ----------------------------
+    symmetrizeMatrix(L);
+
+    // ----------------------------
+    // M = L^T L
+    // ----------------------------
+    computeLtL(L, M);
+
+    // ----------------------------
+    // Eigen-decomposition of M
+    // ----------------------------
+    calculate_all_eigenvalues(M, evals, V);
+
+    // ----------------------------
+    // Singular values
+    // ----------------------------
+    double sigma_max = 0.0;
+    for (int i = 0; i < DIM; ++i) {
+        sigma[i] = sqrt(fmax(evals[i], 0.0));
+        sigma_max = fmax(sigma_max, sigma[i]);
+    }
+
+    // Degenerate matrix
+    if (sigma_max < 1e-14) {
+        // return identity to be safe
+        for (int i = 0; i < DIM; ++i)
+            for (int j = 0; j < DIM; ++j)
+                Linvflat[i*DIM + j] = (i == j);
+        return -1;
+    }
+
+    // ----------------------------
+    // Invert singular values (cutoff)
+    // ----------------------------
+    const double eps = 1e-3 * sigma_max;
+
+    for (int i = 0; i < DIM; ++i) {
+        if (sigma[i] > eps)
+            sigma_inv[i] = 1.0 / sigma[i];
+        else
+            sigma_inv[i] = 0.0;
+    }
+
+    // ----------------------------
+    // U = L * V * Σ^{-1}
+    // ----------------------------
+    for (int i = 0; i < DIM; ++i)
+        for (int j = 0; j < DIM; ++j) {
+            U[i][j] = 0.0;
+            for (int k = 0; k < DIM; ++k)
+                U[i][j] += L[i][k] * V[k][j] * sigma_inv[j];
+        }
+
+    // ----------------------------
+    // L⁺ = V * Σ^{-1} * U^T
+    // ----------------------------
+    for (int i = 0; i < DIM; ++i)
+        for (int j = 0; j < DIM; ++j) {
+            double sum = 0.0;
+            for (int k = 0; k < DIM; ++k)
+                sum += V[i][k] * sigma_inv[k] * U[j][k];
+            Linvflat[i*DIM + j] = sum;
+        }
+
+    return 1;
+}

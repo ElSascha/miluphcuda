@@ -46,8 +46,9 @@ __device__ void multiply_matrix(double a[DIM][DIM], double b[DIM][DIM], double c
 __device__ void copy_matrix(double src[DIM][DIM], double dst[DIM][DIM]);
 __device__ void identity_matrix(double a[DIM][DIM]);
 __device__ void transpose_matrix(double a[DIM][DIM]);
-
-
+__device__ void symmetrizeMatrix(double A[DIM][DIM]);
+__device__ void computeLtL(double L[DIM][DIM], double M[DIM][DIM]);
+__device__ int invertMatrixSVD(double *Lflat, double *Linvflat);
 
 
 #endif

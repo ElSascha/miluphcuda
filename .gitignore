@@ -12,6 +12,15 @@
 *.map
 *.exp
 
+# data
+*.h5
+*.hdf5
+*.info
+*.txt
+*.out
+*.png
+*.log
+
 # Precompiled Headers
 *.gch
 *.pch
@@ -59,3 +68,4 @@ docs/
 create_doc/
 *.inc
 *.swp
+build/bin/miluphcuda

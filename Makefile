@@ -48,7 +48,6 @@ TARGET = $(BIN_DIR)/miluphcuda
 # --- Include directories ---
 INCLUDE_DIRS += $(addprefix -I, $(INC_DIR) $(SRC_DIRS))
 INCLUDE_DIRS += -Iinclude -Iinclude -Iinclude/hydro -Iinclude/lib -Iinclude/integration
-# --- Library directories ---
 LIBRARY_DIRS = -L$(LIB_DIR) -L$(HOME)/.conda/envs/miluphcuda/lib -L/usr/lib/x86_64-linux-gnu/hdf5/serial
 # --- Build rules ---
 all: $(TARGET)

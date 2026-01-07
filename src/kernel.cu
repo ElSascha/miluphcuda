@@ -460,120 +460,77 @@ __global__ void shepardCorrection(int *interactions) {
 }
 #endif
 
-
-
-
-
-
 #if TENSORIAL_CORRECTION
-// this adds first order consistency but needs one more loop over all neighbours
 __global__ void tensorialCorrection(int *interactions)
 {
-    register int64_t interactions_index;
-    register int i, inc, j, k, m;
-    register int d, dd;
-    int rv = 0;
-    inc = blockDim.x * gridDim.x;
-    register double r, dr[DIM], h, dWdr, tmp, f1, f2;
-    double W, dWdx[DIM];
-    double Wj, dWdxj[DIM];
-    double wend_f, wend_sml, q, distance;
-    for (i = threadIdx.x + blockIdx.x * blockDim.x; i < numParticles; i += inc) {
-        register double corrmatrix[DIM*DIM];
-        register double matrix[DIM*DIM];
-        for (d = 0; d < DIM*DIM; d++) {
-            corrmatrix[d] = 0;
-            matrix[d] = 0;
-        }
-        if (EOS_TYPE_IGNORE == matEOS[p_rhs.materialId[i]] || p_rhs.materialId[i] == EOS_TYPE_IGNORE) {
-               continue;
-        }
+    int inc = blockDim.x * gridDim.x;
 
-        k = p.noi[i];
+    for (int i = threadIdx.x + blockIdx.x * blockDim.x;
+         i < numParticles;
+         i += inc)
+    {
+        // Skip inactive / ignored materials
+        if (EOS_TYPE_IGNORE == matEOS[p_rhs.materialId[i]])
+            continue;
 
-        // loop over all interaction partner
-        for (m = 0; m < k; m++) {
-            interactions_index = (int64_t)i * MAX_NUM_INTERACTIONS + m;
-            j = interactions[interactions_index];
-            if (EOS_TYPE_IGNORE == matEOS[p_rhs.materialId[j]] || p_rhs.materialId[j] == EOS_TYPE_IGNORE) {
+        const int k = p.noi[i];
+
+        double L[DIM*DIM];
+        double C[DIM*DIM];
+
+        // Initialize L = 0
+        #pragma unroll
+        for (int d = 0; d < DIM*DIM; ++d)
+            L[d] = 0.0;
+
+        // === build moment matrix L_i ===
+        for (int m = 0; m < k; ++m)
+        {
+            int j = interactions[(int64_t)i * MAX_NUM_INTERACTIONS + m];
+
+            if (EOS_TYPE_IGNORE == matEOS[p_rhs.materialId[j]])
                 continue;
-            }
-            dr[0] = p.x[i] - p.x[j];
+
+            // r_ij = x_i - x_j
+            double rij[DIM];
+            rij[0] = p.x[i] - p.x[j];
 #if DIM > 1
-            dr[1] = p.y[i] - p.y[j];
+            rij[1] = p.y[i] - p.y[j];
 #if DIM == 3
-            dr[2] = p.z[i] - p.z[j];
-            r = sqrt(dr[0]*dr[0]+dr[1]*dr[1]+dr[2]*dr[2]);
-#elif DIM == 2
-            r = sqrt(dr[0]*dr[0]+dr[1]*dr[1]);
+            rij[2] = p.z[i] - p.z[j];
 #endif
 #endif
 
-#if AVERAGE_KERNELS
-            kernel(&W, dWdx, &dWdr, dr, p.h[i]);
-            kernel(&Wj, dWdxj, &dWdr, dr, p.h[j]);
-# if SHEPARD_CORRECTION
-            W /= p_rhs.shepard_correction[i];
-            Wj /= p_rhs.shepard_correction[j];
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] /= p_rhs.shepard_correction[i];
-                dWdxj[d] /= p_rhs.shepard_correction[j];
-            }
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] = 0.5 * (dWdx[d] + dWdxj[d]);
-            }
-            W = 0.5 * (W + Wj);
-# endif
+            // ∇W_ij(x_i), kernel centered at i
+            double W, dWdr;
+            double dWdx[DIM];
+            kernel(&W, dWdx, &dWdr, rij, p.h[i]);  // <-- MUST be antisymmetric kernel
 
+            const double volj = p.m[j] / p.rho[j];
 
-#else
-            h = 0.5*(p.h[i] + p.h[j]);
-            kernel(&W, dWdx, &dWdr, dr, h);
-# if SHEPARD_CORRECTION
-            W /= p_rhs.shepard_correction[i];
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] /= p_rhs.shepard_correction[i];
-            }
-# endif
-#endif // AVERAGE_KERNELS
-
-            for (d = 0; d < DIM; d++) {
-                for (dd = 0; dd < DIM; dd++) {
-                    corrmatrix[d*DIM+dd] -= p.m[j]/p.rho[j] * dr[d] * dWdx[dd];
-                }
-            }
-        } // end loop over interaction partners
-
-        rv = invertMatrix(corrmatrix, matrix);
-        // if something went wrong during inversion, use identity matrix
-        if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK) {
-            #if DEBUG_LINALG
-            if (threadIdx.x == 0) {
-                printf("could not invert matrix: rv: %d and k: %d\n", rv, k);
-                for (d = 0; d < DIM; d++) {
-                    for (dd = 0; dd < DIM; dd++) {
-                        printf("%e\t", corrmatrix[d*DIM+dd]);
-                    }
-                        printf("\n");
-                }
-            }
-            #endif
-            #if 0 //  deactivation is turned off, cms 2023-10-19. implement munroe
-            printf("Deactivating particle %d due to matrix inversion problems\n", i);
-            p_rhs.deactivate_me_flag[i] = TRUE; // particle is deactivated and the whole rhs step is redone with a shorter timestep
-            #endif
-            for (d = 0; d < DIM; d++) {
-                for (dd = 0; dd < DIM; dd++) {
-                    matrix[d*DIM+dd] = 0.0;
-                    if (d == dd)
-                        matrix[d*DIM+dd] = 1.0;
-                }
-            }
+            #pragma unroll
+            for (int a = 0; a < DIM; ++a)
+                #pragma unroll
+                for (int b = 0; b < DIM; ++b)
+                    L[a*DIM + b] = L[a*DIM + b] - volj * rij[a] * dWdx[b];
         }
-        for (d = 0; d < DIM*DIM; d++) {
-            p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d] = matrix[d];
+        // === invert L ===
+        int rv = invertMatrixSVD(L, C);
 
+        // fallback: identity if inversion fails or too few neighbours
+        if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK)
+        {
+            #pragma unroll
+            for (int a = 0; a < DIM; ++a)
+                #pragma unroll
+                for (int b = 0; b < DIM; ++b)
+                    C[a*DIM + b] = (a == b) ? 1.0 : 0.0;
         }
+
+        // store correction tensor
+        #pragma unroll
+        for (int d = 0; d < DIM*DIM; ++d)
+            p_rhs.tensorialCorrectionMatrix[i*DIM*DIM + d] = C[d];
     }
 }
 #endif

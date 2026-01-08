@@ -45,7 +45,7 @@
 
 // integrate the energy equation
 // when setting up a SOLID simulation with Tillotson or ANEOS, it must be set to 1
-#define INTEGRATE_ENERGY 1
+#define INTEGRATE_ENERGY 0
 
 // integrate the continuity equation
 // if set to 0, the density will be calculated using the standard SPH sum \sum_i m_j W_ij
@@ -121,7 +121,7 @@
 //             DAMAGE_ACTS_ON_S is not allowed for this model, since the limiting of S already depends on damage.
 //       If you want to additionally model the influence of some (single) melt energy on the yield strength, then activate
 //       COLLINS_PLASTICITY_INCLUDE_MELT_ENERGY, which adds a factor (1-e/e_melt) to the yield strength.
-#define COLLINS_PLASTICITY 1
+#define COLLINS_PLASTICITY 0
 #define COLLINS_PLASTICITY_INCLUDE_MELT_ENERGY 0
 //   (5) Simplified version of the Collins et al. (2004) model, which uses only the
 //       strength representation for intact material (Y_i), irrespective of damage.
@@ -142,8 +142,8 @@
 
 // Porosity models:
 // p-alpha model implemented following Jutzi (200x)
-#define PALPHA_POROSITY 1          // pressure depends on distention
-#define STRESS_PALPHA_POROSITY 1 // deviatoric stress is also affected by distention
+#define PALPHA_POROSITY 0          // pressure depends on distention
+#define STRESS_PALPHA_POROSITY 0 // deviatoric stress is also affected by distention
 // Sirono model modified by Geretshauser (2009/10)
 #define SIRONO_POROSITY 0
 // Epsilon-Alpha model implemented following Wuennemann
@@ -162,9 +162,9 @@
 // d sml / dt  = sml/DIM * 1/rho  \nabla velocity
 // if you want to specify an individual initial smoothing length for each particle (instead of the material
 // specific one in material.cfg) in the initial particle file, set READ_INITIAL_SML_FROM_PARTICLE_FILE to 1
-#define VARIABLE_SML 1
+#define VARIABLE_SML 0
 #define FIXED_NOI 0
-#define INTEGRATE_SML 1
+#define INTEGRATE_SML 0
 #define READ_INITIAL_SML_FROM_PARTICLE_FILE 1
 
 // correction terms for sml calculation: adds gradient of the smoothing length to continuity equation, equation of motion, internal energy equation

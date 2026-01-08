@@ -372,14 +372,12 @@ __device__ int invertMatrixSVD(double *Lflat, double *Linvflat)
             L[i][j] = Lflat[i*DIM + j];
 
     // ----------------------------
-    // Symmetrize 
-    // ----------------------------
-    symmetrizeMatrix(L);
-
-    // ----------------------------
     // M = L^T L
     // ----------------------------
     computeLtL(L, M);
+
+    // M should be symmetric by construction; this just removes tiny numerical asymmetry.
+    //symmetrizeMatrix(M);
 
     // ----------------------------
     // Eigen-decomposition of M
@@ -407,13 +405,13 @@ __device__ int invertMatrixSVD(double *Lflat, double *Linvflat)
     // ----------------------------
     // Invert singular values (cutoff)
     // ----------------------------
-    const double eps = 1e-3 * sigma_max;
+    const double eps = 1e-4;
 
     for (int i = 0; i < DIM; ++i) {
         if (sigma[i] > eps)
             sigma_inv[i] = 1.0 / sigma[i];
         else
-            sigma_inv[i] = 0.0;
+            sigma_inv[i] = 1.0;
     }
 
     // ----------------------------

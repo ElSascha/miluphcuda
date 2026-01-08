@@ -31,7 +31,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 output_dir = os.path.join(script_dir, 'movie_frames_density')
 os.makedirs(output_dir, exist_ok=True)
 # Find all HDF5 particle files
-particle_files = sorted([f for f in os.listdir(script_dir) if f.startswith('balls.') and f.endswith('.h5')])
+particle_files = sorted([f for f in os.listdir(script_dir) if f.startswith('particles.') and f.endswith('.h5')])
 
 # Determine axis limits from the first frame to use for all frames
 if particle_files:
@@ -62,26 +62,25 @@ for frame_idx, particle_file in enumerate(particle_files):
     with h5py.File(os.path.join(script_dir, particle_file), 'r') as f:
         pos = f['x'][:]
         rho = f['rho'][:]
-        v = f['v'][:]
     if pos.ndim == 1:
         pos = pos.reshape(1, -1)
     x = pos[:, 0]
     y = pos[:, 1]
     z = pos[:, 2]
 
-    colors = np.linalg.norm(v, axis=1)
-    color_label = 'Velocity Magnitude (m/s)'
+    colors = rho
+    color_label = 'Density (kg/m^3)'
 
     fig = plt.figure(figsize=(8, 8)) # Use a square figure for better aspect ratio
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=10, vmin=-1.0, vmax=1.0)
-    ax.set_title(f'Particle Velocity at Frame {frame_idx}')
+    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=50)
+    ax.set_title(f'Particle Density at Frame {frame_idx}')
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
-    ax.set_xlim(-3, 3)
-    ax.set_ylim(-3, 3)
-    ax.set_zlim(-3, 3)
+    ax.set_xlim(lim_min[0], lim_max[0])
+    ax.set_ylim(lim_min[1], lim_max[1])
+    ax.set_zlim(lim_min[2], lim_max[2])
     ax.set_aspect('equal', adjustable='box')
     plt.colorbar(sc, label=color_label, shrink=0.6)
     plt.tight_layout()

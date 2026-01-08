@@ -1,7 +1,7 @@
 '''Makes two spheres of constant particle density that slowly move to each other.
 See constants lower down to set specifics.'''
 # input Format:
-# 1:x[0] 2:x[1] 3:x[2] 4:v[0] 5:v[1] 6:v[2] 7:mass 8:density 9:energy 10:smoothing length 11:material type 12:S/sigma[0][0] 13:S/sigma[0][1] 14:S/sigma[0][2] 15:S/sigma[1][0] 16:S/sigma[1][1] 17:S/sigma[1][2] 18:S/sigma[2][0] 19:S/sigma[2][1] 20:S/sigma[2][2] 21:alpha_jutzi 22:pressure  
+#1:x[0] 2:x[1] 3:x[2] 4:v[0] 5:v[1] 6:v[2] 7:mass 8:density 10:smoothing length 11:material type 12:S/sigma[0][0] 13:S/sigma[0][1] 14:S/sigma[0][2] 15:S/sigma[1][0] 16:S/sigma[1][1] 17:S/sigma[1][2] 18:S/sigma[2][0] 19:S/sigma[2][1] 20:S/sigma[2][2] 
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -151,8 +151,8 @@ def points_to_particles(
     other properties (not counting default arguments of this function) are
     defaulted to 0.0.'''
     N = points.shape[-1]
-    # Prepare array for 22 columns as per required format
-    p = np.zeros((22, N))
+    # Prepare array for 20 columns as per required format
+    p = np.zeros((20, N))
     # 1-3: x[0], x[1], x[2]
     p[0:3, :] = points
     # 4-6: v[0], v[1], v[2]
@@ -166,8 +166,6 @@ def points_to_particles(
     p[9, :] = h
     # 11: material type (set to 0.0)
     # 12-20: S/sigma[0][0] ... S/sigma[2][2] (set to 0.0)
-    p[20, :] = distention
-    # 22: pressure (set to 0.0)
     return p
 
 
@@ -180,11 +178,11 @@ NR_INTERACTIONS_NORMAL = 50 # in the middle of the aggregate, expect N interacti
 SMOOTHING_LENGTH = POINT_DISTANCE * (NR_INTERACTIONS_NORMAL)**(1/3)
 
 DISTENTION = 1.00
-RHO_0 = 2700.0 # monomer material density
+RHO_0 = 1000.0 # monomer material density
 PARTICLE_DENSITY = RHO_0 / DISTENTION
 PARTICLE_MASS = PARTICLE_DENSITY * POINT_DISTANCE**3 # mass/particle = mass density / number density
 
-v = 2.0 # 100 cm/s = 1/ms
+v = 5.0 # 100 cm/s = 1/ms
 
 #print(AGGREGATE_RADIUS, POINT_DISTANCE, SMOOTHING_LENGTH, PARTICLE_DENSITY, PARTICLE_MASS)
 #make_ball_hcp(AGGREGATE_RADIUS, POINT_DISTANCE)

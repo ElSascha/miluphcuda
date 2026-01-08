@@ -354,86 +354,72 @@ __device__ void computeLtL(double L[DIM][DIM], double M[DIM][DIM]) {
         }
 }
 
-__device__ int invertMatrixSVD(double *Lflat, double *Linvflat)
-{
+__device__ int invertMatrixSVD(double *Lflat, double *Linvflat, double eps) {
     double L[DIM][DIM];
-    double M[DIM][DIM];
-    double V[DIM][DIM];
-    double U[DIM][DIM];
-    double evals[DIM];
-    double sigma[DIM];
-    double sigma_inv[DIM];
+    double U[DIM][DIM], V[DIM][DIM], sigma[DIM];
 
-    // ----------------------------
-    // Load L
-    // ----------------------------
+    // --- load L ---
     for (int i = 0; i < DIM; ++i)
         for (int j = 0; j < DIM; ++j)
             L[i][j] = Lflat[i*DIM + j];
 
-    // ----------------------------
-    // M = L^T L
-    // ----------------------------
-    computeLtL(L, M);
+    // --- compute L^T * L ---
+    double LtL[DIM][DIM];
+    computeLtL(L, LtL);
+    symmetrizeMatrix(LtL);
 
-    // M should be symmetric by construction; this just removes tiny numerical asymmetry.
-    //symmetrizeMatrix(M);
+    // --- eigendecomposition of L^T * L gives V and sigma^2 ---
+    double evals[DIM];
+    calculate_all_eigenvalues(LtL, evals, V);
 
-    // ----------------------------
-    // Eigen-decomposition of M
-    // ----------------------------
-    calculate_all_eigenvalues(M, evals, V);
-
-    // ----------------------------
-    // Singular values
-    // ----------------------------
-    double sigma_max = 0.0;
+    // --- sort eigenvalues & eigenvectors descending ---
     for (int i = 0; i < DIM; ++i) {
-        sigma[i] = sqrt(fmax(evals[i], 0.0));
-        sigma_max = fmax(sigma_max, sigma[i]);
-    }
-
-    // Degenerate matrix
-    if (sigma_max < 1e-14) {
-        // return identity to be safe
-        for (int i = 0; i < DIM; ++i)
-            for (int j = 0; j < DIM; ++j)
-                Linvflat[i*DIM + j] = (i == j);
-        return -1;
-    }
-
-    // ----------------------------
-    // Invert singular values (cutoff)
-    // ----------------------------
-    const double eps = 1e-4;
-
-    for (int i = 0; i < DIM; ++i) {
-        if (sigma[i] > eps)
-            sigma_inv[i] = 1.0 / sigma[i];
-        else
-            sigma_inv[i] = 1.0;
-    }
-
-    // ----------------------------
-    // U = L * V * Σ^{-1}
-    // ----------------------------
-    for (int i = 0; i < DIM; ++i)
-        for (int j = 0; j < DIM; ++j) {
-            U[i][j] = 0.0;
-            for (int k = 0; k < DIM; ++k)
-                U[i][j] += L[i][k] * V[k][j] * sigma_inv[j];
+        for (int j = i+1; j < DIM; ++j) {
+            if (evals[j] > evals[i]) {
+                double tmp = evals[i]; evals[i] = evals[j]; evals[j] = tmp;
+                for (int k = 0; k < DIM; ++k) {
+                    tmp = V[k][i]; V[k][i] = V[k][j]; V[k][j] = tmp;
+                }
+            }
         }
+    }
 
-    // ----------------------------
-    // L⁺ = V * Σ^{-1} * U^T
-    // ----------------------------
+    // --- compute singular values ---
+    for (int i = 0; i < DIM; ++i)
+        sigma[i] = fmax(0.0, sqrt(evals[i]));
+
+    // --- compute U = L * V * Sigma^-1 ---
+    for (int i = 0; i < DIM; ++i) {
+        if (sigma[i] > eps) {
+            for (int j = 0; j < DIM; ++j) {
+                U[j][i] = 0.0;
+                for (int k = 0; k < DIM; ++k)
+                    U[j][i] += L[j][k] * V[k][i];
+                U[j][i] /= sigma[i];
+            }
+        } else {
+            for (int j = 0; j < DIM; ++j)
+                U[j][i] = (i == j) ? 1.0 : 0.0;
+        }
+    }
+
+    // --- build Sigma^-1 ---
+    double Sigma_inv[DIM];
+    for (int i = 0; i < DIM; ++i)
+        Sigma_inv[i] = (sigma[i] > eps) ? 1.0 / sigma[i] : 0.0;
+
+    // --- compute L^+ = V * Sigma^-1 * U^T ---
     for (int i = 0; i < DIM; ++i)
         for (int j = 0; j < DIM; ++j) {
             double sum = 0.0;
             for (int k = 0; k < DIM; ++k)
-                sum += V[i][k] * sigma_inv[k] * U[j][k];
+                sum += V[i][k] * Sigma_inv[k] * U[j][k];
             Linvflat[i*DIM + j] = sum;
         }
 
-    return 1;
+    // optional: return rank
+    int rank = 0;
+    for (int i = 0; i < DIM; ++i)
+        if (sigma[i] > eps) rank++;
+    return rank;
 }

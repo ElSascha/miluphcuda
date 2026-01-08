@@ -583,34 +583,7 @@ __global__ void tensorialCorrection(int *interactions)
             r = sqrt(dr[0]*dr[0]+dr[1]*dr[1]);
 #endif
 #endif
-
-#if AVERAGE_KERNELS
             kernel(&W, dWdx, &dWdr, dr, p.h[i]);
-            kernel(&Wj, dWdxj, &dWdr, dr, p.h[j]);
-# if SHEPARD_CORRECTION
-            W /= p_rhs.shepard_correction[i];
-            Wj /= p_rhs.shepard_correction[j];
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] /= p_rhs.shepard_correction[i];
-                dWdxj[d] /= p_rhs.shepard_correction[j];
-            }
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] = 0.5 * (dWdx[d] + dWdxj[d]);
-            }
-            W = 0.5 * (W + Wj);
-# endif
-
-
-#else
-            h = 0.5*(p.h[i] + p.h[j]);
-            kernel(&W, dWdx, &dWdr, dr, h);
-# if SHEPARD_CORRECTION
-            W /= p_rhs.shepard_correction[i];
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] /= p_rhs.shepard_correction[i];
-            }
-# endif
-#endif // AVERAGE_KERNELS
 
             for (d = 0; d < DIM; d++) {
                 for (dd = 0; dd < DIM; dd++) {
@@ -619,32 +592,29 @@ __global__ void tensorialCorrection(int *interactions)
             }
         } // end loop over interaction partners
 
-        rv = invertMatrixSVD(matrix, corrmatrix);
-        // if something went wrong during inversion, use identity matrix
-        if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK) {
-            #if DEBUG_LINALG
-            if (threadIdx.x == 0) {
-                printf("could not invert matrix: rv: %d and k: %d\n", rv, k);
-                for (d = 0; d < DIM; d++) {
-                    for (dd = 0; dd < DIM; dd++) {
-                        printf("%e\t", corrmatrix[d*DIM+dd]);
-                    }
-                        printf("\n");
-                }
-            }
-            #endif
-            #if 0 //  deactivation is turned off, cms 2023-10-19. implement munroe
-            printf("Deactivating particle %d due to matrix inversion problems\n", i);
-            p_rhs.deactivate_me_flag[i] = TRUE; // particle is deactivated and the whole rhs step is redone with a shorter timestep
-            #endif
-            for (d = 0; d < DIM; d++) {
-                for (dd = 0; dd < DIM; dd++) {
-                    matrix[d*DIM+dd] = 0.0;
-                    if (d == dd)
-                        matrix[d*DIM+dd] = 1.0;
-                }
-            }
-        }
+        // invert the moment matrix (corrmatrix) into matrix
+        rv = invertMatrixSVD(corrmatrix, matrix, 1e-10);
+        // // if something went wrong during inversion, use identity matrix
+        // if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK) {
+        //     #if DEBUG_LINALG
+        //     if (threadIdx.x == 0) {
+        //         printf("could not invert matrix: rv: %d and k: %d\n", rv, k);
+        //         for (d = 0; d < DIM; d++) {
+        //             for (dd = 0; dd < DIM; dd++) {
+        //                 printf("%e\t", corrmatrix[d*DIM+dd]);
+        //             }
+        //                 printf("\n");
+        //         }
+        //     }
+        //     #endif
+        //     for (d = 0; d < DIM; d++) {
+        //         for (dd = 0; dd < DIM; dd++) {
+        //             matrix[d*DIM+dd] = 0.0;
+        //             if (d == dd)
+        //                 matrix[d*DIM+dd] = 1.0;
+        //         }
+        //     }
+        // }
         for (d = 0; d < DIM*DIM; d++) {
             p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d] = matrix[d];
 

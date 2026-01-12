@@ -392,6 +392,22 @@ void rightHandSide()
     //cudaVerifyKernel((printTensorialCorrectionMatrix<<<1,1>>>( interactions)));
 #endif
 
+#if TENSORIAL_CORRECTION
+# if DEBUG_RHS_RUNTIMES
+    cudaEventRecord(start, 0);
+# endif
+    cudaVerifyKernel((tensorialCorrection<<<numberOfMultiprocessors*4, NUM_THREADS_256>>>( interactions)));
+    cudaVerify(cudaDeviceSynchronize());
+# if DEBUG_RHS_RUNTIMES
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time[timerCounter], start, stop);
+    printf("duration tensorial correction: %.7f ms\n", time[timerCounter]);
+    totalTime += time[timerCounter++];
+# endif
+//    cudaVerifyKernel((printTensorialCorrectionMatrix<<<1,1>>>( interactions)));
+#endif
+
 #if DEBUG_RHS_RUNTIMES
     cudaEventRecord(start, 0);
 #endif
@@ -563,21 +579,7 @@ void rightHandSide()
 # endif
 #endif
 
-#if TENSORIAL_CORRECTION
-# if DEBUG_RHS_RUNTIMES
-    cudaEventRecord(start, 0);
-# endif
-    cudaVerifyKernel((tensorialCorrection<<<numberOfMultiprocessors*4, NUM_THREADS_256>>>( interactions)));
-    cudaVerify(cudaDeviceSynchronize());
-# if DEBUG_RHS_RUNTIMES
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time[timerCounter], start, stop);
-    printf("duration tensorial correction: %.7f ms\n", time[timerCounter]);
-    totalTime += time[timerCounter++];
-# endif
-//    cudaVerifyKernel((printTensorialCorrectionMatrix<<<1,1>>>( interactions)));
-#endif
+
 
 #if VISCOUS_REGOLITH
 # if DEBUG_RHS_RUNTIMES

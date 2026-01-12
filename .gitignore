@@ -20,6 +20,7 @@
 *.out
 *.png
 *.log
+*.0000
 
 # Precompiled Headers
 *.gch

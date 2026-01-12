@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 radius = 1.0
 dx = 0.1
 offset_dx = radius+1.1*dx
-offset_dy = radius/2.0
-collision_velocity = 1.0
+offset_dy = radius/1.1
+collision_velocity = 3.0
 density = 1e3
 m = density * dx**3
 

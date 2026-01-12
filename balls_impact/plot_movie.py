@@ -30,12 +30,12 @@ def _infer_spacing(coords):
 script_dir = os.path.dirname(os.path.realpath(__file__))
 output_dir = os.path.join(script_dir, 'movie_frames_density')
 os.makedirs(output_dir, exist_ok=True)
-# Find all HDF5 particle files
-particle_files = sorted([f for f in os.listdir(script_dir) if f.startswith('balls.') and f.endswith('.h5')])
-
+# Find all HDF5 particle files in data directory
+data_dir = os.path.join(script_dir, 'data')
+particle_files = sorted([f for f in os.listdir(data_dir) if f.startswith('balls') and f.endswith('.h5')])
 # Determine axis limits from the first frame to use for all frames
 if particle_files:
-    with h5py.File(os.path.join(script_dir, particle_files[0]), 'r') as f:
+    with h5py.File(os.path.join(data_dir, particle_files[0]), 'r') as f:
         pos = f['x'][:]
     if pos.ndim == 1:
         pos = pos.reshape(1, -1)
@@ -59,7 +59,7 @@ else:
 
 # Loop over each particle file and generate a plot
 for frame_idx, particle_file in enumerate(particle_files):
-    with h5py.File(os.path.join(script_dir, particle_file), 'r') as f:
+    with h5py.File(os.path.join(data_dir, particle_file), 'r') as f:
         pos = f['x'][:]
         rho = f['rho'][:]
         v = f['v'][:]
@@ -74,14 +74,14 @@ for frame_idx, particle_file in enumerate(particle_files):
 
     fig = plt.figure(figsize=(8, 8)) # Use a square figure for better aspect ratio
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=10, vmin=-1.0, vmax=1.0)
+    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=7, vmin = 0 , vmax = 1.0)
     ax.set_title(f'Particle Velocity at Frame {frame_idx}')
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
-    ax.set_xlim(-3, 3)
-    ax.set_ylim(-3, 3)
-    ax.set_zlim(-3, 3)
+    ax.set_xlim(-5, 5)
+    ax.set_ylim(-5, 5)
+    ax.set_zlim(-5, 5)
     ax.set_aspect('equal', adjustable='box')
     plt.colorbar(sc, label=color_label, shrink=0.6)
     plt.tight_layout()

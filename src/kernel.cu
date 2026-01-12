@@ -34,6 +34,11 @@
 // will be set to the identity matrix (-> disabling the correction factors)
 #define MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK 0
 
+// Additional safety: even if the moment matrix is formally full-rank, it can be
+// extremely ill-conditioned near free surfaces/contact, producing a huge inverse
+// and injecting unphysical torque. Clamp overly large correction matrices.
+#define MAX_ABS_TENSORIAL_CORRECTION_ENTRY 5.0
+
 
 // pointers for the kernel function
 __device__ SPH_kernel kernel;
@@ -461,85 +466,6 @@ __global__ void shepardCorrection(int *interactions) {
 #endif
 
 
-
-
-//Saschas implementation of the tensorial correction matrix
-// #if TENSORIAL_CORRECTION
-// __global__ void tensorialCorrection(int *interactions)
-// {
-//     int inc = blockDim.x * gridDim.x;
-
-//     for (int i = threadIdx.x + blockIdx.x * blockDim.x;
-//          i < numParticles;
-//          i += inc)
-//     {
-//         // Skip inactive / ignored materials
-//         if (EOS_TYPE_IGNORE == matEOS[p_rhs.materialId[i]])
-//             continue;
-
-//         const int k = p.noi[i];
-
-//         double L[DIM*DIM];
-//         double C[DIM*DIM];
-
-//         // Initialize L = 0
-//         #pragma unroll
-//         for (int d = 0; d < DIM*DIM; ++d)
-//             L[d] = 0.0;
-
-//         // === build moment matrix L_i ===
-//         for (int m = 0; m < k; ++m)
-//         {
-//             int j = interactions[(int64_t)i * MAX_NUM_INTERACTIONS + m];
-
-//             if (EOS_TYPE_IGNORE == matEOS[p_rhs.materialId[j]])
-//                 continue;
-
-//             // r_ij = x_i - x_j
-//             double rij[DIM];
-//             rij[0] = p.x[i] - p.x[j];
-// #if DIM > 1
-//             rij[1] = p.y[i] - p.y[j];
-// #if DIM == 3
-//             rij[2] = p.z[i] - p.z[j];
-// #endif
-// #endif
-
-//             // ∇W_ij(x_i), kernel centered at i
-//             double W, dWdr;
-//             double dWdx[DIM];
-//             kernel(&W, dWdx, &dWdr, rij, p.h[i]);  // <-- MUST be antisymmetric kernel
-
-//             const double volj = p.m[j] / p.rho[j];
-
-//             #pragma unroll
-//             for (int a = 0; a < DIM; ++a)
-//                 #pragma unroll
-//                 for (int b = 0; b < DIM; ++b)
-//                     L[a*DIM + b] = L[a*DIM + b] - volj * rij[a] * dWdx[b];
-//         }
-//         // === invert L ===
-//         int rv = invertMatrixSVD(L, C);
-
-//         // fallback: identity if inversion fails or too few neighbours
-//         if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK)
-//         {
-//             #pragma unroll
-//             for (int a = 0; a < DIM; ++a)
-//                 #pragma unroll
-//                 for (int b = 0; b < DIM; ++b)
-//                     C[a*DIM + b] = (a == b) ? 1.0 : 0.0;
-//         }
-
-//         // store correction tensor
-//         #pragma unroll
-//         for (int d = 0; d < DIM*DIM; ++d)
-//             p_rhs.tensorialCorrectionMatrix[i*DIM*DIM + d] = C[d];
-//     }
-// }
-// #endif
-
-// Schäfer implementation of the tensorial correction matrix
 #if TENSORIAL_CORRECTION
 
 __global__ void tensorialCorrection(int *interactions)
@@ -593,28 +519,17 @@ __global__ void tensorialCorrection(int *interactions)
         } // end loop over interaction partners
 
         // invert the moment matrix (corrmatrix) into matrix
-        rv = invertMatrixSVD(corrmatrix, matrix, 1e-10);
-        // // if something went wrong during inversion, use identity matrix
-        // if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK) {
-        //     #if DEBUG_LINALG
-        //     if (threadIdx.x == 0) {
-        //         printf("could not invert matrix: rv: %d and k: %d\n", rv, k);
-        //         for (d = 0; d < DIM; d++) {
-        //             for (dd = 0; dd < DIM; dd++) {
-        //                 printf("%e\t", corrmatrix[d*DIM+dd]);
-        //             }
-        //                 printf("\n");
-        //         }
-        //     }
-        //     #endif
-        //     for (d = 0; d < DIM; d++) {
-        //         for (dd = 0; dd < DIM; dd++) {
-        //             matrix[d*DIM+dd] = 0.0;
-        //             if (d == dd)
-        //                 matrix[d*DIM+dd] = 1.0;
-        //         }
-        //     }
-        // }
+        // Use 1e-4 as threshold to match Hydro.cpp reference and filter noise
+        rv = invert_svd(corrmatrix, matrix, 1e-14);
+
+        if (rv == 0) {
+            for (d = 0; d < DIM; d++) {
+                  for (dd = 0; dd < DIM; dd++) {
+                      matrix[d*DIM+dd] = (d == dd) ? 1.0 : 0.0;
+                  }
+            }
+        }
+
         for (d = 0; d < DIM*DIM; d++) {
             p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d] = matrix[d];
 

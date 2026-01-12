@@ -216,8 +216,8 @@ __device__ int calculate_all_eigenvalues(double M[DIM][DIM], double eigenvalues[
             identity_matrix(A);
             A[e][e] = c;
             A[f][f] = c;
-            A[e][f] = -s;
-            A[f][e] = s;
+            A[e][f] = s;
+            A[f][e] = -s;
             // calculate the eigenvectors
             multiply_matrix(v, A, vtmp);
             copy_matrix(vtmp, v);
@@ -345,81 +345,57 @@ __device__ void symmetrizeMatrix(double A[DIM][DIM]) {
         }
 }
 
-__device__ void computeLtL(double L[DIM][DIM], double M[DIM][DIM]) {
-    for (int i = 0; i < DIM; ++i)
-        for (int j = 0; j < DIM; ++j) {
-            M[i][j] = 0.0;
-            for (int k = 0; k < DIM; ++k)
-                M[i][j] += L[k][i] * L[k][j];
+__device__ int invert_svd(double *m, double *inverted, double threshold_svd) {
+    int i, j, k;
+    double A[DIM][DIM];
+    double V[DIM][DIM];
+    double eigenvalues[DIM];
+    double P[DIM][DIM];
+
+    // Load matrix into local memory
+    for (i = 0; i < DIM; i++) {
+        for (j = 0; j < DIM; j++) {
+            A[i][j] = m[i * DIM + j];
         }
-}
+    }
 
-__device__ int invertMatrixSVD(double *Lflat, double *Linvflat, double eps) {
-    double L[DIM][DIM];
-    double U[DIM][DIM], V[DIM][DIM], sigma[DIM];
+    // Since m (and thus A) is symmetric for SPH tensor corrections,
+    // we can compute Eigenvalues and Eigenvectors directly on A.
+    // This avoids limiting precision by computing A^T * A.
+    calculate_all_eigenvalues(A, eigenvalues, V);
 
-    // --- load L ---
-    for (int i = 0; i < DIM; ++i)
-        for (int j = 0; j < DIM; ++j)
-            L[i][j] = Lflat[i*DIM + j];
+    // Compute Pseudo-Inverse: M^+ = V * Sigma^-1 * V^T
+    // For a symmetric matrix, SVD singular values are abs(eigenvalues).
+    // The pseudo-inverse eigenvalues are 1/eigenvalue.
 
-    // --- compute L^T * L ---
-    double LtL[DIM][DIM];
-    computeLtL(L, LtL);
-    symmetrizeMatrix(LtL);
+    for (i = 0; i < DIM; i++) {
+        for (j = 0; j < DIM; j++) {
+            P[i][j] = 0.0;
+        }
+    }
 
-    // --- eigendecomposition of L^T * L gives V and sigma^2 ---
-    double evals[DIM];
-    calculate_all_eigenvalues(LtL, evals, V);
+    int used_eigenvalues = 0;
 
-    // --- sort eigenvalues & eigenvectors descending ---
-    for (int i = 0; i < DIM; ++i) {
-        for (int j = i+1; j < DIM; ++j) {
-            if (evals[j] > evals[i]) {
-                double tmp = evals[i]; evals[i] = evals[j]; evals[j] = tmp;
-                for (int k = 0; k < DIM; ++k) {
-                    tmp = V[k][i]; V[k][i] = V[k][j]; V[k][j] = tmp;
+    for (k = 0; k < DIM; k++) {
+        double ev = eigenvalues[k];
+        // Threshold check on absolute value of eigenvalue (singular value)
+        if (fabs(ev) > threshold_svd) {
+            used_eigenvalues++;
+            double inv_ev = 1.0 / ev;
+            for (i = 0; i < DIM; i++) {
+                for (j = 0; j < DIM; j++) {
+                    P[i][j] += inv_ev * V[i][k] * V[j][k];
                 }
             }
         }
     }
 
-    // --- compute singular values ---
-    for (int i = 0; i < DIM; ++i)
-        sigma[i] = fmax(0.0, sqrt(evals[i]));
-
-    // --- compute U = L * V * Sigma^-1 ---
-    for (int i = 0; i < DIM; ++i) {
-        if (sigma[i] > eps) {
-            for (int j = 0; j < DIM; ++j) {
-                U[j][i] = 0.0;
-                for (int k = 0; k < DIM; ++k)
-                    U[j][i] += L[j][k] * V[k][i];
-                U[j][i] /= sigma[i];
-            }
-        } else {
-            for (int j = 0; j < DIM; ++j)
-                U[j][i] = (i == j) ? 1.0 : 0.0;
+    // Store result
+    // For symmetric matrices, the result P is already the inverse.
+    for (i = 0; i < DIM; i++) {
+        for (j = 0; j < DIM; j++) {
+            inverted[i * DIM + j] = P[i][j];
         }
     }
-
-    // --- build Sigma^-1 ---
-    double Sigma_inv[DIM];
-    for (int i = 0; i < DIM; ++i)
-        Sigma_inv[i] = (sigma[i] > eps) ? 1.0 / sigma[i] : 0.0;
-
-    // --- compute L^+ = V * Sigma^-1 * U^T ---
-    for (int i = 0; i < DIM; ++i)
-        for (int j = 0; j < DIM; ++j) {
-            double sum = 0.0;
-            for (int k = 0; k < DIM; ++k)
-                sum += V[i][k] * Sigma_inv[k] * U[j][k];
-            Linvflat[i*DIM + j] = sum;
-        }
-
-    // optional: return rank
-    int rank = 0;
-    for (int i = 0; i < DIM; ++i)
-        if (sigma[i] > eps) rank++;
-    return rank;
+    return used_eigenvalues;
 }

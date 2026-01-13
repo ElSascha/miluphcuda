@@ -382,6 +382,13 @@ __global__ void internalForces(int *interactions) {
                      dWdx_corr_j[d] += p_rhs.tensorialCorrectionMatrix[j*DIM*DIM+d*DIM+dd] * dWdx[dd];
                 }
             }
+            vvnablaW = dvx * dWdx_corr_i[0];
+#if DIM > 1
+            vvnablaW += dvy * dWdx_corr_i[1];
+#if DIM > 2
+            vvnablaW += dvz * dWdx_corr_i[2];
+#endif
+#endif
 #endif
 
 #if ARTIFICIAL_VISCOSITY || KLEY_VISCOSITY
@@ -705,7 +712,7 @@ __global__ void internalForces(int *interactions) {
             //drhodt += p.m[i]*vvnablaW;
             // Randles and Libersky's version (1996)
 # if TENSORIAL_CORRECTION
-#  if 0 // cms 2020-06-10 testing time step size, this part gives a tiny step size due to density
+// cms 2020-06-10 testing time step size, this part gives a tiny step size due to density
       //                evolution, needs some debugging
       // debugging started 2023-02-15, for the colliding rings, the original version is stable, this one not!
             double divv = 0.0;
@@ -715,12 +722,9 @@ __global__ void internalForces(int *interactions) {
                 }
             }
             drhodt += p.rho[i] * divv;
-#  else
-            drhodt += p.rho[i]/p.rho[j] * p.m[j] * vvnablaW;
-#  endif
 # else
             drhodt += p.rho[i]/p.rho[j] * p.m[j] * vvnablaW;
-# endif // TENSORIAL CORRECTION
+# endif // TENSORIAL_CORRECTION
 
 #else // HYDRO now
 # if SML_CORRECTION 
@@ -749,11 +753,23 @@ __global__ void internalForces(int *interactions) {
 #if INTEGRATE_ENERGY
 # if ARTIFICIAL_VISCOSITY
             if (!isRelaxationRun) {
-#  if SML_CORRECTION
-                dedt += p.m[j] * vvnablaW;
+#  if TENSORIAL_CORRECTION
+                double vvnablaW_corr = 0.0;
+                for (d = 0; d < DIM; d++) {
+                    vvnablaW_corr += dv[d] * 0.5 * (dWdx_corr_i[d] + dWdx_corr_j[d]);
+                }
+#   if SML_CORRECTION
+                dedt += p.m[j] * vvnablaW_corr;
+#   else
+                dedt += 0.5 * p.m[j] * pij * vvnablaW_corr;
+#   endif
 #  else
+#   if SML_CORRECTION
+                dedt += p.m[j] * vvnablaW;
+#   else
                 dedt += 0.5 * p.m[j] * pij * vvnablaW;
-#  endif // SML_CORRECTION
+#   endif // SML_CORRECTION
+#  endif // TENSORIAL_CORRECTION
             }
 # endif
 
@@ -841,7 +857,11 @@ __global__ void internalForces(int *interactions) {
         ptmp = p.p[i];
 #  endif
 
+#  if TENSORIAL_CORRECTION
+        dedt += ptmp * drhodt / (p.rho[i] * p.rho[i]);
+#  else
         dedt -= ptmp / p.rho[i] * p_rhs.divv[i];
+#  endif
         // symmetrize edot
         for (d = 0; d < DIM; d++) {
             for (dd = 0; dd < d; dd++) {

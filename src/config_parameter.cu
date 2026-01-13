@@ -197,8 +197,10 @@ __device__ int pressureChangeSmallEnough = FALSE;
 
 __device__ double scale_height;
 
+
 double *matYoungModulus_d;
 __constant__ double *matYoungModulus;
+
 
 __constant__ double *matporjutzi_p_elastic;
 __constant__ double *matporjutzi_p_transition;

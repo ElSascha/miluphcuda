@@ -74,14 +74,14 @@ for frame_idx, particle_file in enumerate(particle_files):
 
     fig = plt.figure(figsize=(8, 8)) # Use a square figure for better aspect ratio
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=7, vmin = 0 , vmax = 1.0)
+    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=7, vmin=0.0, vmax=2.0)
     ax.set_title(f'Particle Velocity at Frame {frame_idx}')
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
-    ax.set_xlim(-5, 5)
-    ax.set_ylim(-5, 5)
-    ax.set_zlim(-5, 5)
+    ax.set_xlim(-3, 3)
+    ax.set_ylim(-3, 3)
+    ax.set_zlim(-3, 3)
     ax.set_aspect('equal', adjustable='box')
     plt.colorbar(sc, label=color_label, shrink=0.6)
     plt.tight_layout()

@@ -1,10 +1,12 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
+#SBATCH --time=08:00:00
 #SBATCH --mem-per-cpu=64gb
-#SBATCH --job-name=cube_impact_no_correction
+#SBATCH --job-name=Spheres_impact
 #SBATCH --partition=gpu
 ## use the a100 or the a30 or the h200
-#SBATCH --gres=gpu:h200:1
+#SBATCH --gres=gpu:a30:1
+
+
 
 
 echo $HOSTNAME >> output.txt

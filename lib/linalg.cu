@@ -370,7 +370,10 @@ __device__ int invert_svd(double *m, double *inverted, double threshold_svd) {
 
     for (i = 0; i < DIM; i++) {
         for (j = 0; j < DIM; j++) {
-            P[i][j] = 0.0;
+            if( i == j )
+                P[i][j] = 1.0;
+            else
+                P[i][j] = 0.0;
         }
     }
 

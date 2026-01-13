@@ -519,8 +519,7 @@ __global__ void tensorialCorrection(int *interactions)
         } // end loop over interaction partners
 
         // invert the moment matrix (corrmatrix) into matrix
-        // Use 1e-4 as threshold to match Hydro.cpp reference and filter noise
-        rv = invert_svd(corrmatrix, matrix, 1e-14);
+        rv = invert_svd(corrmatrix, matrix, 1e-8);
 
         if (rv == 0) {
             for (d = 0; d < DIM; d++) {

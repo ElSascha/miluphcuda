@@ -45,7 +45,7 @@
 
 // integrate the energy equation
 // when setting up a SOLID simulation with Tillotson or ANEOS, it must be set to 1
-#define INTEGRATE_ENERGY 0
+#define INTEGRATE_ENERGY 1
 
 // integrate the continuity equation
 // if set to 0, the density will be calculated using the standard SPH sum \sum_i m_j W_ij
@@ -92,6 +92,7 @@
 #define SHEPARD_CORRECTION 0
 // for linear consistency
 // add tensorial correction tensor to dSdt calculation -> better conservation of angular momentum
+
 #define TENSORIAL_CORRECTION 1
 
 // Available plastic flow conditions:
@@ -121,7 +122,7 @@
 //             DAMAGE_ACTS_ON_S is not allowed for this model, since the limiting of S already depends on damage.
 //       If you want to additionally model the influence of some (single) melt energy on the yield strength, then activate
 //       COLLINS_PLASTICITY_INCLUDE_MELT_ENERGY, which adds a factor (1-e/e_melt) to the yield strength.
-#define COLLINS_PLASTICITY 0
+#define COLLINS_PLASTICITY 1
 #define COLLINS_PLASTICITY_INCLUDE_MELT_ENERGY 0
 //   (5) Simplified version of the Collins et al. (2004) model, which uses only the
 //       strength representation for intact material (Y_i), irrespective of damage.

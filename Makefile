@@ -10,7 +10,7 @@ CUDA_DIR    = $(HOME)/.conda/envs/miluphcuda
 NVCC   = $(CUDA_DIR)/bin/nvcc
 
 NVFLAGS  = -ccbin ${CC} -x cu -c -dc -O3 -Xcompiler "-O3 -pthread -fPIE" -Wno-deprecated-gpu-targets -DVERSION=\"$(GIT_VERSION)\" --ptxas-options=-v
-GPU_ARCH = -arch=sm_90
+GPU_ARCH = -arch=sm_80
 
 CUDA_LIB      = $(CUDA_DIR)
 INCLUDE_DIRS += -I$(CUDA_DIR)/include -I/usr/lib/openmpi/include -I/usr/include/hdf5/serial

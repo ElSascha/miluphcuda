@@ -94,7 +94,7 @@
 #define ARTIFICIAL_STRESS 0
 
 // standard SPH alpha/beta viscosity
-#define ARTIFICIAL_VISCOSITY 0
+#define ARTIFICIAL_VISCOSITY 1
 // Balsara switch: lowers the artificial viscosity in regions without shocks
 #define BALSARA_SWITCH 0
 

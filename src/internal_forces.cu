@@ -352,8 +352,8 @@ __global__ void internalForces(int *interactions) {
                 dWdx[e] /= p_rhs.shepard_correction[i];
             }
             dWdr /= p_rhs.shepard_correction[i];
-# endif
-#endif
+# endif // SHEPARD_CORRECTION
+#endif // AVERAGE_KERNELS
 
             dv[0] = dvx = vx - vxj;
 #if DIM > 1
@@ -383,18 +383,14 @@ __global__ void internalForces(int *interactions) {
                      dWdx_corr_j[d] += p_rhs.tensorialCorrectionMatrix[j*DIM*DIM + dd*DIM + d] * dWdx[dd];
                 }
             }
-#if TENSORIAL_CORRECTION_FOR_DRHODT
-# if (SPH_EQU_VERSION == 1 || SPH_EQU_VERSION == 2)
+# if TENSORIAL_CORRECTION_FOR_DRHODT
             vvnablaW = 0.0;
             for (d = 0; d < DIM; d++) {
                 vvnablaW += dv[d] * dWdx_corr_i[d];
             }
-# else
-#  error Invalid choice of SPH_EQU_VERSION in parameter.h.
-# endif
-#endif
-
-#endif //TENSORIAL_CORRECTION
+# endif // TENSORIAL_CORRECTION_FOR_DRHODT
+#endif // TENSORIAL_CORRECTION
+ 
 
 #if ARTIFICIAL_VISCOSITY || KLEY_VISCOSITY
             rr = 0.0;
@@ -455,7 +451,6 @@ __global__ void internalForces(int *interactions) {
                 //printf("%d\n", boundia);
                 tmp = p.m[j];
 # if TENSORIAL_CORRECTION
-#  if (SPH_EQU_VERSION == 1 || SPH_EQU_VERSION == 2)
                 // non-averaged: use particle i's own correction matrix only,
                 // consistent with reproducing 1st-order velocity gradients at particle i
                 for (e = 0; e < DIM; e++) {
@@ -466,9 +461,6 @@ __global__ void internalForces(int *interactions) {
                             (dWdx_corr_i[f] * (-dv[e]) - dWdx_corr_i[e] * (-dv[f]));
                     }
                 }
-#  else
-#   error Invalid choice of SPH_EQU_VERSION in parameter.h.
-#  endif
 
 # else // NOT TENSORIAL_CORRECTION
                 tmp = -0.5*tmp/p.rho[i];
@@ -735,15 +727,6 @@ __global__ void internalForces(int *interactions) {
 #endif
 
 # if ARTIFICIAL_VISCOSITY
-#  if TENSORIAL_CORRECTION
-            accels[0] += p.m[j]*(-pij * 0.5)*(dWdx_corr_i[0] + dWdx_corr_j[0]);
-#   if DIM > 1
-            accels[1] += p.m[j]*(-pij * 0.5)*(dWdx_corr_i[1] + dWdx_corr_j[1]);
-#    if DIM > 2
-            accels[2] += p.m[j]*(-pij * 0.5)*(dWdx_corr_i[2] + dWdx_corr_j[2]);
-#    endif
-#   endif
-#  else
             accels[0] += p.m[j]*(-pij)*dWdx[0];
 #   if DIM > 1
             accels[1] += p.m[j]*(-pij)*dWdx[1];
@@ -751,7 +734,6 @@ __global__ void internalForces(int *interactions) {
             accels[2] += p.m[j]*(-pij)*dWdx[2];
 #    endif
 #   endif
-#  endif
 # endif
 
 

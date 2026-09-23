@@ -78,7 +78,7 @@ for frame_idx, particle_file in enumerate(particle_files):
     y = pos[:, 1]
     z = pos[:, 2]
 
-    time_step_size = 0.001 # assuming constant time step size; adjust as needed
+    time_step_size = 0.033 # assuming constant time step size; adjust as needed
 
     colors = np.linalg.norm(vel, axis=1)
     color_label = 'Velocity magnitude (m/s)'

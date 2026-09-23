@@ -1,10 +1,14 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
-#SBATCH --mem-per-cpu=64gb
-#SBATCH --job-name=Basalt_impact
+#SBATCH --job-name=balls_impact_basalt
 #SBATCH --partition=gpu
-## use the a100 or the a30 or the h200
-#SBATCH --gres=gpu:a30:1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --gres=gpu:1
+#SBATCH --time=05:00:00
+#SBATCH --output=%x.out   # Separates Log pro Job-Ausführung
+#SBATCH --error=%x.err    # Separates Error-Log pro Job-Ausführung
 
 
 
@@ -25,4 +29,5 @@ echo "hdf5"
 module load lib/hdf5/1.12-gnu-11.4 
 
 # run the code
-nice -15 ../build/bin/miluphcuda -v -A -f data/balls.0000 -g -H -k wendlandc4 -I rk2_adaptive -m materials/material_list.cfg -n 500 -M 0.1 -t 0.1 >> output.txt 2> error.txt
+
+../build/miluphcuda -A -f data/balls.0000 -g -H -I rk2_adaptive -m materials/material.cfg -n 300 -M 1e-5 -t 0.033

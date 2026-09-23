@@ -34,6 +34,7 @@
 #include "pressure.h"
 #include "rhs.h"
 #include "damage.h"
+#include "fast_integration.h"
 #include <float.h>
 
 
@@ -179,6 +180,7 @@ __global__ void CorrectorStep_euler()
         // next line, Oli & Christoph personal communication 2019-06-24
         p.p[i] = predictor.p[i];
         p.pold[i] = predictor.pold[i];
+        p.f[i] = predictor.f[i];
         p.alpha_jutzi_old[i] = p.alpha_jutzi_old[i];
 #endif
 #endif
@@ -727,6 +729,9 @@ void predictor_corrector_euler()
             cudaVerify(cudaMemcpyFromSymbol(&currentTime, currentTimeD, sizeof(double)));
             substep_currentTime = currentTime;
             cudaVerify(cudaMemcpyToSymbol(substep_currentTimeD, &substep_currentTime, sizeof(double)));
+#if FAST_INTEGRATION_SCHEME
+            check_fast_scheme();
+#endif
             rightHandSide();
             cudaVerify(cudaDeviceSynchronize());
             cudaVerifyKernel((setTimestep_euler<<<numberOfMultiprocessors, NUM_THREADS_LIMITTIMESTEP>>>(

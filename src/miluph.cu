@@ -116,6 +116,7 @@ extern __device__ SPH_kernel wendlandc2_p;
 extern __device__ SPH_kernel wendlandc4_p;
 extern __device__ SPH_kernel wendlandc6_p;
 extern __device__ SPH_kernel cubic_spline_p;
+extern __device__ SPH_kernel quintic_spline_p;
 extern __device__ SPH_kernel spiky_p;
 SPH_kernel kernel_h;
 
@@ -615,7 +616,7 @@ void usage(char *name)
             "\t\t\t\t\t 'rk2_adaptive' (default, 2nd order with adaptive time step),\n"
             "\t\t\t\t\t 'heun_rk4' (2nd order for sph coupled with fourth order for n-body).\n"
             "\t-k, --kernel <name>\t\t Set kernel function (default: 'cubic_spline').\n"
-            "\t      \t\t\t\t Options: wendlandc2, wendlandc4, wendlandc6, cubic_spline, spiky.\n"
+            "\t      \t\t\t\t Options: wendlandc2, wendlandc4, wendlandc6, cubic_spline, quintic_spline, spiky.\n"
             "\t-L, --angular_momentum <value> \t Check for conservation of angular momentum (default: off).\n"
             "\t\t\t\t\t Simulation stops once the relative difference between current and initial angular momentum is larger than <value>.\n"
             "\t-m, --materialconfig <name>\t Name of libconfig file including material config (default: material.cfg)\n"
@@ -634,7 +635,9 @@ void usage(char *name)
 #endif
             "\t-Y, --format\t\t\t Print information about input and output format of the data files,\n"
             "\t\t\t\t\t and about the compile time options of the binary.\n\n"
-            "Take a deep look at parameter.h. There you find most of the physics and numerics settings.\n\n"
+            "Take a deep look at parameter.h. There you find most of the settings for physics and numerics.\n\n"
+            "Take also a deep look at timeintegration.h if you have issues with tiny timesteps or halting simulations. There you find a lot of additional settings for the time integration scheme, especially for the adaptive Runge-Kutta integrator.\n\n"
+            "Take also deep look at miluph.h for some debugging switches if you do changes in the code or start developing.\n\n"
             "More information on github: https://github.com/christophmschaefer/miluphcuda\n\n",
         MILUPHCUDA_VERSION, name);
     exit(0);
@@ -1057,6 +1060,10 @@ int main(int argc, char *argv[])
     } else if (0 == strcmp(param.kernel, "cubic_spline")) {
         fprintf(stdout, "cubic_spline\n");
         cudaMemcpyFromSymbol(&kernel_h, cubic_spline_p, sizeof(SPH_kernel));
+        cudaMemcpyToSymbol(kernel, &kernel_h, sizeof(SPH_kernel));
+    } else if (0 == strcmp(param.kernel, "quintic_spline")) {
+        fprintf(stdout, "quintic_spline\n");
+        cudaMemcpyFromSymbol(&kernel_h, quintic_spline_p, sizeof(SPH_kernel));
         cudaMemcpyToSymbol(kernel, &kernel_h, sizeof(SPH_kernel));
     } else if (0 == strcmp(param.kernel, "spiky")) {
         fprintf(stdout, "spiky\n");

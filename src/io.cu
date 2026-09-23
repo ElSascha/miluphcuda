@@ -1540,6 +1540,7 @@ void write_particles_to_file(File file) {
 #if PALPHA_POROSITY
     hid_t alpha_id;
     hid_t dalphadt_id;
+    hid_t f_id;
 #endif
 
 #if SIRONO_POROSITY
@@ -2160,11 +2161,35 @@ void write_particles_to_file(File file) {
             j = p_host.materialId[i];
             if( g_eos_is_aneos[j] == TRUE ) {
                 aneos_i_rho = array_index_host(p_host.rho[i], g_aneos_rho[j], g_aneos_n_rho[j]);
+                if (aneos_i_rho < 0) {
+                    aneos_i_rho = (p_host.rho[i] < g_aneos_rho[j][0]) ? 0 : g_aneos_n_rho[j] - 2;
+                }
                 aneos_i_e = array_index_host(p_host.e[i], g_aneos_e[j], g_aneos_n_e[j]);
-                x_aneos_T[i] = bilinear_interpolation_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_T[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
-                x_aneos_cs[i] = bilinear_interpolation_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_cs[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
-                x_aneos_entropy[i] = bilinear_interpolation_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_entropy[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
-                x_aneos_phase_flag[i] = discrete_value_table_lookup_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_phase_flag[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+                if (p_host.rho[i] <= 0.0) {
+                    /* isolated particle with no neighbours: set all ANEOS quantities to sentinel */
+                    x_aneos_T[i] = 0.0;
+                    x_aneos_cs[i] = 0.0;
+                    x_aneos_entropy[i] = 0.0;
+                    x_aneos_phase_flag[i] = -1;
+                } else if (aneos_i_e < 0 && p_host.e[i] >= g_aneos_e[j][g_aneos_n_e[j] - 1]) {
+                    /* e above table maximum: fully vaporized, ideal gas fallback */
+                    x_aneos_T[i]          = (g_aneos_gamma[j] - 1.0) * p_host.e[i] * g_aneos_molar_mass[j] / R_GAS;
+                    x_aneos_cs[i]         = sqrt(g_aneos_gamma[j] * (g_aneos_gamma[j] - 1.0) * p_host.e[i]);
+                    x_aneos_entropy[i]    = -1.0;
+                    x_aneos_phase_flag[i] = ANEOS_PHASE_TWO_PHASE_LV;   /* = 2, vapor-bearing */
+                } else if (aneos_i_e < 0) {
+                    /* e below table minimum: clamp to cold curve */
+                    aneos_i_e = 0;
+                    //x_aneos_phase_flag[i] = discrete_value_table_lookup_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_phase_flag[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+                    x_aneos_phase_flag[i] = discrete_value_table_lookup_from_matrix(p_host.rho[i], g_aneos_e[j][0], g_aneos_phase_flag[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+
+                } else {
+                    /* normal case: rho and e within table */
+                    x_aneos_T[i]       = bilinear_interpolation_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_T[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+                    x_aneos_cs[i]      = bilinear_interpolation_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_cs[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+                    x_aneos_entropy[i] = bilinear_interpolation_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_entropy[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+                    x_aneos_phase_flag[i] = discrete_value_table_lookup_from_matrix(p_host.rho[i], p_host.e[i], g_aneos_phase_flag[j], g_aneos_rho[j], g_aneos_e[j], aneos_i_rho, aneos_i_e, g_aneos_n_rho[j], g_aneos_n_e[j], i);
+                }
             }
             else {
                 x_aneos_T[i] = -1.0;
@@ -2515,7 +2540,7 @@ void write_particles_to_file(File file) {
         /* damage total */
         // damage_total_id = H5Dcreate2(file_id, "/damage_total", H5T_NATIVE_DOUBLE, dataspace_id,
         damage_total_id = create_compressed_dataset(file_id, "/damage_total_porjutzi", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                //H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         for (i = 0; i < numberOfParticles; i++) {
             x[i] = pow(p_host.damage_porjutzi[i], DIM) + pow(p_host.d[i], DIM);
             if (x[i] > 1.0)
@@ -2731,11 +2756,23 @@ void write_particles_to_file(File file) {
         x = (double *) malloc(sizeof(double) * numberOfParticles);
         // dalphadt_id = H5Dcreate2(file_id, "/dalphadt", H5T_NATIVE_DOUBLE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         dalphadt_id = create_compressed_dataset(file_id, "/dalphadt", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
-        for (i = 0; i < numberOfParticles; i++)
+        for (i = 0; i < numberOfParticles; i++) {
             x[i] = p_host.dalphadt[i];
+        }
 
         status = H5Dwrite(dalphadt_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x);
         status = H5Dclose(dalphadt_id);
+        free(x);
+
+        /* Jutzi's f factor, ratio of matrix to bulk velocity divergence */
+        x = (double *) malloc(sizeof(double) * numberOfParticles);
+        f_id = create_compressed_dataset(file_id, "/f", H5T_NATIVE_DOUBLE, dataspace_id, dims, 1);
+        for (i = 0; i < numberOfParticles; i++) {
+            x[i] = p_host.f[i];
+        }
+
+        status = H5Dwrite(f_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, x);
+        status = H5Dclose(f_id);
         free(x);
 #endif
 
@@ -3089,6 +3126,7 @@ void copyToHostAndWriteToFile(int timestep, int lastTimestep)
 #endif
 #if PALPHA_POROSITY
     cudaVerify(cudaMemcpy(p_host.pold, p_device.pold, memorySizeForParticles, cudaMemcpyDeviceToHost));
+    cudaVerify(cudaMemcpy(p_host.f, p_device.f, memorySizeForParticles, cudaMemcpyDeviceToHost));
     cudaVerify(cudaMemcpy(p_host.alpha_jutzi, p_device.alpha_jutzi, memorySizeForParticles, cudaMemcpyDeviceToHost));
     cudaVerify(cudaMemcpy(p_host.dalphadt, p_device.dalphadt, memorySizeForParticles, cudaMemcpyDeviceToHost));
     cudaVerify(cudaMemcpy(p_host.alpha_jutzi_old, p_device.alpha_jutzi_old, memorySizeForParticles, cudaMemcpyDeviceToHost));

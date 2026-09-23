@@ -45,11 +45,11 @@
 
 // integrate the energy equation
 // when setting up a SOLID simulation with Tillotson or ANEOS, it must be set to 1
-#define INTEGRATE_ENERGY 0
+#define INTEGRATE_ENERGY 1
 
 // integrate the continuity equation
 // if set to 0, the density will be calculated using the standard SPH sum \sum_i m_j W_ij
-#define INTEGRATE_DENSITY 0
+#define INTEGRATE_DENSITY 1
 
 // adds viscosity to the Euler equation
 #define NAVIER_STOKES 0
@@ -108,7 +108,7 @@
 //       in material.cfg you need:
 //          friction_angle =
 //          cohesion =
-#define MOHR_COULOMB_PLASTICITY 1
+#define MOHR_COULOMB_PLASTICITY 0
 //       Note: DP and MC are intended for granular-like materials, therefore the yield strength simply decreases (linearly) to zero for p<0.
 //       Note: For DP and MC you can additionally choose (1) to impose an upper limit for the yield stress.
 //   (4) Pressure dependent yield strength following Collins et al. (2004) and the implementation in Jutzi (2015)
@@ -146,7 +146,7 @@
 //                  [cohesion] = [Pascal]
 
 // model regolith as viscous fluid -> experimental setup, only for powerusers
-#define VISCOUS_REGOLITH 0
+#define VISCOUS_REGOLITH 1
 // use Bui model for regolith -> experimental setup, only for powerusers
 #define PURE_REGOLITH 0
 // use Johnson-Cook plasticity model -> experimental setup, only for powerusers
@@ -164,7 +164,7 @@
 // max number of activation thresholds per particle, only required for FRAGMENTATION, otherwise set to 1
 #define MAX_NUM_FLAWS 1
 // maximum number of interactions per particle -> fixed array size
-#define MAX_NUM_INTERACTIONS 4000
+#define MAX_NUM_INTERACTIONS 512
 
 // if set to 1, the smoothing length is not fixed for each material type
 // choose either FIXED_NOI for a fixed number of interaction partners following
@@ -177,7 +177,7 @@
 #define VARIABLE_SML 0
 #define FIXED_NOI 0
 #define INTEGRATE_SML 0
-#define READ_INITIAL_SML_FROM_PARTICLE_FILE 0
+#define READ_INITIAL_SML_FROM_PARTICLE_FILE 1
 
 // correction terms for sml calculation: adds gradient of the smoothing length to continuity equation, equation of motion, internal energy equation
 #define SML_CORRECTION 0

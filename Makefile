@@ -1,79 +1,93 @@
 # This is the miluphcuda Makefile.
 
 CC = /usr/bin/g++
+
+# directory layout
+SRC_DIR   = src
+INC_DIR   = include
+BUILD_DIR = build
+OBJ_DIR   = $(BUILD_DIR)/obj
+TARGET    = $(BUILD_DIR)/miluphcuda
+
 CFLAGS   = -c -std=c99 -O3 -DVERSION=\"$(GIT_VERSION)\" -fPIC
+#CFLAGS   = -c -std=c99 -g
 LDFLAGS  = -lm
 
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
 
-CUDA_DIR    = $(HOME)/.conda/envs/miluphcuda
-NVCC   = $(CUDA_DIR)/bin/nvcc
+CUDA_DIR   ?= $(if $(CONDA_PREFIX),$(CONDA_PREFIX),/usr/local/cuda)
 
-NVFLAGS  = -ccbin ${CC} -x cu -c -dc -O3 -Xcompiler "-O3 -pthread -fPIE" -Wno-deprecated-gpu-targets -DVERSION=\"$(GIT_VERSION)\" --ptxas-options=-v
-GPU_ARCH = -arch=sm_90
+NVCC   = ${CUDA_DIR}/bin/nvcc
 
-CUDA_LIB      = $(CUDA_DIR)
-INCLUDE_DIRS += -I$(CUDA_DIR)/include -I/usr/lib/openmpi/include -I/usr/include/hdf5/serial
-LDFLAGS      += -L$(CUDA_LIB)/lib -L$(CUDA_LIB)/lib64 -L/usr/lib/x86_64-linux-gnu/hdf5/serial \
-				-Xlinker -rpath -Xlinker $(CUDA_LIB)/lib -Xlinker -rpath -Xlinker $(CUDA_LIB)/lib64 -lcudart -lpthread -lconfig -lhdf5
+# for using a debugger use the first, otherwise the third:
+#NVFLAGS  = -ccbin ${CC} -x cu -c -dc  -G -lineinfo  -Xcompiler "-rdynamic -g -pthread"  -DVERSION=\"$(GIT_VERSION)\"
+#NVFLAGS  = -x cu -c -dc -O3  -Xcompiler "-O3 -pthread" --ptxas-options=-v
+NVFLAGS  = -ccbin ${CC} -x cu -c -dc -O3  -Xcompiler "-O3 -pthread" -Wno-deprecated-gpu-targets -DVERSION=\"$(GIT_VERSION)\"  --ptxas-options=-v
 
-
-
-# --- Project structure ---
-# include both top-level source directories: src and lib (some sources live in lib/)
-SRC_DIRS   = src lib
-INC_DIR    = include
-LIB_DIR    = lib
-OBJ_DIR    = build/obj
-BIN_DIR    = build/bin
+CUDA_LINK_FLAGS = -dlink
+CUDA_LINK_OBJ = $(OBJ_DIR)/cuLink.o
 
 
-# Create dirs if not existing
-$(shell mkdir -p $(OBJ_DIR) $(BIN_DIR))
+# important: compute capability, corresponding to GPU model (e.g., -arch=sm_52 for 5.2)
+GPU_ARCH ?= -arch=sm_80
+# (very) incomplete list:
+# compute capability    GPU models
+#                2.0    GeForce GTX 570, Quadro 4000
+#                3.0    GeForce GTX 680, GeForce GTX 770
+#                3.5    GeForce GTX Titan, Tesla K40
+#                3.7    Tesla K80
+#                5.0    GeForce GTX 750 Ti
+#                5.2    GeForce GTX 970, GeForce GTX Titan X
+#                6.1    GeForce GTX 1080, GeForce GTX 1080 Ti
+#                8.0    NVIDIA A100
 
-# --- Source discovery ---
-## Find source files recursively under each source dir (handles nested folders like src/integration)
-SRC_C   = $(shell find $(SRC_DIRS) -type f -name '*.c')
-SRC_CU  = $(shell find $(SRC_DIRS) -type f -name '*.cu')
 
-# --- Object files ---
-# Map any source file under the listed source dirs to build/obj/<dir>/file.o
-OBJ_C   = $(patsubst %.c,$(OBJ_DIR)/%.o,$(SRC_C))
-OBJ_CU  = $(patsubst %.cu,$(OBJ_DIR)/%.o,$(SRC_CU))
-OBJECTS = $(OBJ_C) $(OBJ_CU)
+CUDA_LIB      = ${CUDA_DIR}
+INCLUDE_DIRS += -I$(INC_DIR) -I$(CUDA_LIB)/include -I/usr/include/hdf5/serial -I/usr/lib/openmpi/include/
+# if you use HDF5 I/O use the first, otherwise the second:
+LDFLAGS      += -Xlinker -rpath -Xlinker $(CUDA_LIB)/lib -Xlinker -rpath -Xlinker $(CUDA_LIB)/lib64 -ccbin ${CC} -L$(CUDA_LIB)/lib -L$(CUDA_LIB)/lib64 -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lcudart -lpthread -lconfig -lhdf5
+#LDFLAGS      += -ccbin ${CC} -L$(CUDA_LIB)/lib64 -lcudart -lpthread -lconfig
 
-# --- Output binary ---
-TARGET = $(BIN_DIR)/miluphcuda
 
-# --- Include directories ---
-INCLUDE_DIRS += $(addprefix -I, $(INC_DIR) $(SRC_DIRS))
-INCLUDE_DIRS += -Iinclude -Iinclude -Iinclude/hydro -Iinclude/lib -Iinclude/integration
-# --- Library directories ---
-LIBRARY_DIRS = -L$(LIB_DIR) -L$(HOME)/.conda/envs/miluphcuda/lib -L/usr/lib/x86_64-linux-gnu/hdf5/serial
-# --- Build rules ---
+# default target
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS)
-	$(NVCC) $(GPU_ARCH) $(OBJECTS) $(LDFLAGS) -o $@
+# headers and object files
+HEADER_NAMES =
+CUDA_HEADER_NAMES = cuda_utils.h  checks.h io.h  miluph.h  parameter.h  timeintegration.h  tree.h  euler.h rk2adaptive.h pressure.h soundspeed.h device_tools.h boundary.h predictor_corrector.h predictor_corrector_euler.h memory_handling.h plasticity.h porosity.h aneos.h kernel.h linalg.h xsph.h density.h rhs.h internal_forces.h velocity.h damage.h little_helpers.h gravity.h viscosity.h artificial_stress.h stress.h extrema.h sinking.h coupled_heun_rk4_sph_nbody.h rk4_pointmass.h config_parameter.h fast_integration.h
+
+OBJ_NAMES =
+CUDA_OBJ_NAMES = io.o  miluph.o  boundary.o timeintegration.o tree.o memory_handling.o euler.o rk2adaptive.o pressure.o soundspeed.o device_tools.o predictor_corrector.o predictor_corrector_euler.o plasticity.o porosity.o aneos.o kernel.o linalg.o xsph.o density.o rhs.o internal_forces.o velocity.o damage.o little_helpers.o gravity.o viscosity.o artificial_stress.o stress.o extrema.o sinking.o coupled_heun_rk4_sph_nbody.o rk4_pointmass.o config_parameter.o fast_integration.o
+
+HEADERS      = $(addprefix $(INC_DIR)/,$(HEADER_NAMES))
+CUDA_HEADERS = $(addprefix $(INC_DIR)/,$(CUDA_HEADER_NAMES))
+OBJ          = $(addprefix $(OBJ_DIR)/,$(OBJ_NAMES))
+CUDA_OBJ     = $(addprefix $(OBJ_DIR)/,$(CUDA_OBJ_NAMES))
 
 
-# Compile .c files into build/obj (works for src/ and lib/ subdirs)
-$(OBJ_DIR)/%.o: %.c
-	@mkdir -p $(dir $@)
+documentation:
+	cd doc && make all > .log
+
+$(TARGET): $(OBJ) $(CUDA_OBJ) | $(BUILD_DIR)
+#	$(NVCC) $(GPU_ARCH) $(CUDA_LINK_FLAGS) -o $(CUDA_LINK_OBJ) $(CUDA_OBJ)
+	$(NVCC) $(GPU_ARCH) $(CUDA_OBJ) $(LDFLAGS) -Wno-deprecated-gpu-targets -o $@
+#	$(CC) $(OBJ) $(CUDA_OBJ) $(CUDA_LINK_OBJ) $(LDFLAGS) -o $@
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(INCLUDE_DIRS) -o $@ $<
 
-
-# Compile .cu files into build/obj (works for src/ and lib/ subdirs)
-$(OBJ_DIR)/%.o: %.cu
-	@mkdir -p $(dir $@)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu | $(OBJ_DIR)
 	$(NVCC) $(GPU_ARCH) $(NVFLAGS) $(INCLUDE_DIRS) -o $@ $<
 
-# --- Cleanup ---
-.PHONY: clean
-clean:
-	@rm -rf $(OBJ_DIR) $(BIN_DIR)
-	@echo "make clean: done"
+$(BUILD_DIR) $(OBJ_DIR):
+	@mkdir -p $@
 
-# --- Dependencies ---
-$(OBJ_C):  $(HEADERS) Makefile
-$(OBJ_CU): $(HEADERS) $(CUDA_HEADERS) Makefile
+.PHONY: all clean documentation
+clean:
+	@rm -rf	$(BUILD_DIR)
+	@echo make clean: done
+
+
+# dependencies for object files
+$(OBJ):  $(HEADERS) Makefile
+$(CUDA_OBJ): $(HEADERS) $(CUDA_HEADERS) Makefile

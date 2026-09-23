@@ -30,9 +30,26 @@
 #include "linalg.h"
 #include "pressure.h"
 
+
+// choose one of the following two schemes: either the traditional KGC or the modern weighted one
+#define USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME 1
+// Ren et al. weighted kgc scheme // EXPERIMENTAL, DO NOT USE or check your results CAREFULLY.... C-A-R-E-F-U-L-L-Y
+#define USE_WEIGHTED_KERNEL_GRADIENT_CORRECTION_SCHEME 0
+
+
 // for interaction partners less than this value, the tensorial correction matrix
 // will be set to the identity matrix (-> disabling the correction factors)
 #define MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK 0
+
+// Additional safety: even if the moment matrix is formally full-rank, it can be
+// extremely ill-conditioned near free surfaces/contact, producing a huge inverse
+// and injecting unphysical torque. Clamp overly large correction matrices.
+// 5.0 seems like an appropriate value, but you can play around with this for sure.
+#define MAX_ABS_TENSORIAL_CORRECTION_ENTRY 50.0
+
+
+
+
 
 
 // pointers for the kernel function
@@ -41,6 +58,7 @@ __device__ SPH_kernel wendlandc2_p = wendlandc2;
 __device__ SPH_kernel wendlandc4_p = wendlandc4;
 __device__ SPH_kernel wendlandc6_p = wendlandc6;
 __device__ SPH_kernel cubic_spline_p = cubic_spline;
+__device__ SPH_kernel quintic_spline_p = quintic_spline;
 __device__ SPH_kernel spiky_p = spiky;
 
 
@@ -134,6 +152,59 @@ __device__ void cubic_spline(double *W, double dWdx[DIM], double *dWdr, double d
     }
 }
 
+__device__ void quintic_spline(double *W, double dWdx[DIM], double *dWdr, double dx[DIM], double sml)
+{
+    int d;
+    double r = 0;
+    for (d = 0; d < DIM; d++) {
+        r += dx[d]*dx[d];
+        dWdx[d] = 0;
+    }
+    r = sqrt(r);
+    *dWdr = 0;
+    *W = 0;
+
+    if (r >= sml) return;
+
+    double q = r / sml;
+
+    // pieces in terms of q = r/sml
+    double t1 = (3. - 3.*q);           // = 3(1-q), always active
+    double t2 = (2. - 3.*q);           // active for q < 2/3
+    double t3 = (1. - 3.*q);           // active for q < 1/3
+
+    double f = 0;
+    double dfdq = 0;
+
+    if (q < 1./3.) {
+        f    =  t1*t1*t1*t1*t1 - 6.*t2*t2*t2*t2*t2 + 15.*t3*t3*t3*t3*t3;
+        dfdq = -15.*t1*t1*t1*t1 + 90.*t2*t2*t2*t2 - 225.*t3*t3*t3*t3;
+    } else if (q < 2./3.) {
+        f    =  t1*t1*t1*t1*t1 - 6.*t2*t2*t2*t2*t2;
+        dfdq = -15.*t1*t1*t1*t1 + 90.*t2*t2*t2*t2;
+    } else {
+        f    =  t1*t1*t1*t1*t1;
+        dfdq = -15.*t1*t1*t1*t1;
+    }
+
+#if (DIM == 1)
+    double sigma = 1.   / (40.     * sml);
+#elif (DIM == 2)
+    double sigma = 63.  / (478. * M_PI * sml*sml);
+#elif (DIM == 3)
+    double sigma = 9.   / (40.  * M_PI * sml*sml*sml);
+#endif
+
+    *W = sigma * f;
+    *dWdr = sigma * dfdq / sml;
+
+    for (d = 0; d < DIM; d++) {
+        dWdx[d] = *dWdr / r * dx[d];
+    }
+}
+
+
+
 // Wendland C2 from Dehnen & Aly 2012
 __device__ void wendlandc2(double *W, double dWdx[DIM], double *dWdr, double dx[DIM], double sml)
 {
@@ -192,10 +263,10 @@ __device__ void wendlandc4(double *W, double dWdx[DIM], double *dWdr, double dx[
         q = r/sml;
 #if (DIM == 2)
         *W = 9./(M_PI*sml*sml) * (1-q)*(1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1.+6*q+35./3.*q*q) * (q < 1);
-        *dWdr = -54./(M_PI*sml*sml*sml) * (1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1.-35.*q*q+105.*q*q*q) * (q< 1);
+        *dWdr = -168./(M_PI*sml*sml*sml) * q*(1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1.+5.*q) * (q < 1);
 #elif (DIM == 3)
         *W = 495./(32.*M_PI*sml*sml*sml) * (1-q)*(1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1.+6.*q+35./3.*q*q) * (q < 1);
-        *dWdr = -1485./(16.*M_PI*sml*sml*sml*sml) * (1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1.-35.*q*q+105.*q*q*q) * (q< 1);
+        *dWdr = -1155./(4.*M_PI*sml*sml*sml*sml) * q*(1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1.+5.*q) * (q < 1);
 #elif (DIM == 1)
         *W = 3./(2.*sml) * (1-q)*(1-q)*(1-q)*(1-q)*(1-q) * (1+5*q+8*q*q) * (q < 1);
         *dWdr = -21./(sml*sml) * q * (1-q)*(1-q)*(1-q)*(1-q) * (1+4*q) * (q < 1);
@@ -388,17 +459,48 @@ __global__ void CalcDivvandCurlv(int *interactions)
 #if (DIM == 1 && BALSARA_SWITCH)
 #error unset BALSARA SWITCH in 1D
 #elif DIM == 2
-            // only one component in 2D
+# if TENSORIAL_CORRECTION
+            double dWdx_corr_i[DIM];
+            for (int d = 0; d < DIM; d++) {
+                dWdx_corr_i[d] = 0.0;
+                for (int dd = 0; dd < DIM; dd++) {
+                     dWdx_corr_i[d] += p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d*DIM+dd] * dWdx[dd];
+                }
+            }
+            curlv[0] += p.m[j]/p.rho[i] * ((vi[0] - vj[0]) * dWdx_corr_i[1]
+                        - (vi[1] - vj[1]) * dWdx_corr_i[0]);
+            curlv[1] = 0;
+# else
             curlv[0] += p.m[j]/p.rho[i] * ((vi[0] - vj[0]) * dWdx[1]
                         - (vi[1] - vj[1]) * dWdx[0]);
             curlv[1] = 0;
+# endif
 #elif DIM == 3
+# if TENSORIAL_CORRECTION
+            double dWdx_corr_i[DIM];
+            for (int d = 0; d < DIM; d++) {
+                dWdx_corr_i[d] = 0.0;
+                for (int dd = 0; dd < DIM; dd++) {
+                     dWdx_corr_i[d] += p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d*DIM+dd] * dWdx[dd];
+                }
+            }
+
+            // difference form with Bi, mirrors divv's own convention above;
+            // reduces exactly to the uncorrected branch when Bi = I
+            curlv[0] += p.m[j]/p.rho[i] * ((vi[1] - vj[1]) * dWdx_corr_i[2]
+                        - (vi[2] - vj[2]) * dWdx_corr_i[1]);
+            curlv[1] += p.m[j]/p.rho[i] * ((vi[2] - vj[2]) * dWdx_corr_i[0]
+                        - (vi[0] - vj[0]) * dWdx_corr_i[2]);
+            curlv[2] += p.m[j]/p.rho[i] * ((vi[0] - vj[0]) * dWdx_corr_i[1]
+                        - (vi[1] - vj[1]) * dWdx_corr_i[0]);
+# else
             curlv[0] += p.m[j]/p.rho[i] * ((vi[1] - vj[1]) * dWdx[2]
                         - (vi[2] - vj[2]) * dWdx[1]);
             curlv[1] += p.m[j]/p.rho[i] * ((vi[2] - vj[2]) * dWdx[0]
                         - (vi[0] - vj[0]) * dWdx[2]);
             curlv[2] += p.m[j]/p.rho[i] * ((vi[0] - vj[0]) * dWdx[1]
                         - (vi[1] - vj[1]) * dWdx[0]);
+# endif
 #endif
         }
         for (d = 0; d < DIM; d++) {
@@ -407,7 +509,7 @@ __global__ void CalcDivvandCurlv(int *interactions)
             p_rhs.divv[i] = divv;
     }
 }
-#endif //  (NAVIER_STOKES || BALSARA_SWITCH || INVISCID_SPH)
+#endif // (NAVIER_STOKES || BALSARA_SWITCH || INVISCID_SPH || INTEGRATE_ENERGY)
 
 #if SHEPARD_CORRECTION
 // this adds zeroth order consistency but needs one more loop over all neighbours
@@ -461,12 +563,8 @@ __global__ void shepardCorrection(int *interactions) {
 #endif
 
 
-
-
-
-
 #if TENSORIAL_CORRECTION
-// this adds first order consistency but needs one more loop over all neighbours
+
 __global__ void tensorialCorrection(int *interactions)
 {
     register int64_t interactions_index;
@@ -510,32 +608,17 @@ __global__ void tensorialCorrection(int *interactions)
 #endif
 
 #if AVERAGE_KERNELS
+            double dWdrj;
             kernel(&W, dWdx, &dWdr, dr, p.h[i]);
-            kernel(&Wj, dWdxj, &dWdr, dr, p.h[j]);
-# if SHEPARD_CORRECTION
-            W /= p_rhs.shepard_correction[i];
-            Wj /= p_rhs.shepard_correction[j];
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] /= p_rhs.shepard_correction[i];
-                dWdxj[d] /= p_rhs.shepard_correction[j];
-            }
+            kernel(&Wj, dWdxj, &dWdrj, dr, p.h[j]);
+
+            W = 0.5 * (W + Wj);
             for (d = 0; d < DIM; d++) {
                 dWdx[d] = 0.5 * (dWdx[d] + dWdxj[d]);
             }
-            W = 0.5 * (W + Wj);
-# endif
-
-
 #else
-            h = 0.5*(p.h[i] + p.h[j]);
-            kernel(&W, dWdx, &dWdr, dr, h);
-# if SHEPARD_CORRECTION
-            W /= p_rhs.shepard_correction[i];
-            for (d = 0; d < DIM; d++) {
-                dWdx[d] /= p_rhs.shepard_correction[i];
-            }
-# endif
-#endif // AVERAGE_KERNELS
+            kernel(&W, dWdx, &dWdr, dr, p.h[i]);
+#endif
 
             for (d = 0; d < DIM; d++) {
                 for (dd = 0; dd < DIM; dd++) {
@@ -544,32 +627,70 @@ __global__ void tensorialCorrection(int *interactions)
             }
         } // end loop over interaction partners
 
-        rv = invertMatrix(corrmatrix, matrix);
-        // if something went wrong during inversion, use identity matrix
-        if (rv < 0 || k < MIN_NUMBER_OF_INTERACTIONS_FOR_TENSORIAL_CORRECTION_TO_WORK) {
-            #if DEBUG_LINALG
-            if (threadIdx.x == 0) {
-                printf("could not invert matrix: rv: %d and k: %d\n", rv, k);
-                for (d = 0; d < DIM; d++) {
-                    for (dd = 0; dd < DIM; dd++) {
-                        printf("%e\t", corrmatrix[d*DIM+dd]);
-                    }
-                        printf("\n");
-                }
-            }
-            #endif
-            #if 0 //  deactivation is turned off, cms 2023-10-19. implement munroe
-            printf("Deactivating particle %d due to matrix inversion problems\n", i);
-            p_rhs.deactivate_me_flag[i] = TRUE; // particle is deactivated and the whole rhs step is redone with a shorter timestep
-            #endif
-            for (d = 0; d < DIM; d++) {
-                for (dd = 0; dd < DIM; dd++) {
-                    matrix[d*DIM+dd] = 0.0;
-                    if (d == dd)
-                        matrix[d*DIM+dd] = 1.0;
-                }
+#if USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME
+        // invert the moment matrix (corrmatrix) into matrix
+        rv = invert_svd(corrmatrix, matrix, 1e-8);
+
+
+        // revert to identity if matrix is ill-conditioned
+        #if DIM == 2
+        double det = matrix[0]*matrix[3] - matrix[1]*matrix[2];
+        #elif DIM == 3
+        double det = matrix[0]*(matrix[4]*matrix[8]-matrix[5]*matrix[7])
+                - matrix[1]*(matrix[3]*matrix[8]-matrix[5]*matrix[6])
+                + matrix[2]*(matrix[3]*matrix[7]-matrix[4]*matrix[6]);
+        #endif
+
+        // check for ill-conditioning
+        double max_entry = 0.0;
+        for (d = 0; d < DIM*DIM; d++) {
+            max_entry = fmax(max_entry, fabs(matrix[d]));
+        }
+        // rv < DIM means invert_svd already discarded at least one eigenvalue as
+        // unreliable (rank-deficient moment matrix) -- a more direct signal than
+        // det/max_entry alone, since det is a product of all eigenvalues and can
+        // mask a single bad direction that rv catches immediately.
+        // these values are just best practice... change if required and you know what you're doing
+        if (rv < DIM || fabs(det) < 1e-5 || fabs(det) > 5000.0 || max_entry > MAX_ABS_TENSORIAL_CORRECTION_ENTRY) {
+    for (d = 0; d < DIM*DIM; d++)
+        matrix[d] = (double)(d % (DIM+1) == 0); // identity
+        }
+#if DEBUG_DEVEL
+            printf("Warning: tensorial correction matrix for particle %d is ill-conditioned, determinant = %g, rv = %d, max_entry = %lf. Setting to identity.\n", i, det, rv, max_entry);
+#endif
+#elif USE_WEIGHTED_KERNEL_GRADIENT_CORRECTION_SCHEME // following Ren et al. https://arxiv.org/abs/2304.14865
+        // invert the moment matrix (corrmatrix) into matrix
+        rv = invert_svd(corrmatrix, matrix, 1e-8);
+
+        // compute det of the moment matrix A (before inversion)
+        // this is the natural quality measure: det(A) -> 1 in bulk, -> 0 at surface
+        #if DIM == 2
+        double det_A = corrmatrix[0]*corrmatrix[3] - corrmatrix[1]*corrmatrix[2];
+        #elif DIM == 3
+        double det_A = corrmatrix[0]*(corrmatrix[4]*corrmatrix[8]-corrmatrix[5]*corrmatrix[7])
+                    - corrmatrix[1]*(corrmatrix[3]*corrmatrix[8]-corrmatrix[5]*corrmatrix[6])
+                    + corrmatrix[2]*(corrmatrix[3]*corrmatrix[7]-corrmatrix[4]*corrmatrix[6]);
+        #endif
+
+        if (rv < DIM || fabs(det_A) < 1e-14) {
+            // truly rank-deficient: hard fallback to identity
+        #if DEBUG_DEVEL
+            printf("Warning: tensorial correction matrix for particle %d is rank-deficient, det_A = %g, rv = %d. Setting to identity.\n", i, det_A, rv);
+        #endif
+            for (d = 0; d < DIM*DIM; d++)
+                matrix[d] = (double)(d % (DIM+1) == 0);
+        } else {
+            // smooth blend: w=1 in bulk (det_A~1), w->0 near surface (det_A->0)
+            // no free parameters needed, EXPERIMENTAL DO NOT USE!!
+            double w = fmin(1.0, fabs(det_A));
+            for (d = 0; d < DIM*DIM; d++) {
+                double identity_val = (double)(d % (DIM+1) == 0);
+                matrix[d] = w * matrix[d] + (1.0 - w) * identity_val;
             }
         }
+#else
+#error You have to choose between the old school kernel gradient correction scheme or the weighted kgc in kernel.cu
+#endif
         for (d = 0; d < DIM*DIM; d++) {
             p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d] = matrix[d];
 

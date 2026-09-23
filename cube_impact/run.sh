@@ -1,10 +1,12 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
+#SBATCH --time=08:00:00
 #SBATCH --mem-per-cpu=64gb
-#SBATCH --job-name=cube_impact_no_correction
+#SBATCH --job-name=Spheres_impact
 #SBATCH --partition=gpu
 ## use the a100 or the a30 or the h200
 #SBATCH --gres=gpu:h200:1
+
+
 
 
 echo $HOSTNAME >> output.txt
@@ -24,4 +26,4 @@ module load lib/hdf5/1.12-gnu-11.4
 
 # run the code
 
-nice -15 ../build/bin/miluphcuda -v -A -f particles.0000 -g -H -I rk2_adaptive -m material.cfg -n 100 -M 0.01 -t 0.01 >> output.txt 2> error.txt
+nice -15 ../build/bin/miluphcuda -v -A -f data/particles.0000 -g -H -k wendlandc4 -I rk2_adaptive -L -m materials/material.cfg -n 100 -M 0.001 -t 0.05 >> output.txt 2> error.txt

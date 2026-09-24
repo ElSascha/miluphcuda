@@ -87,6 +87,7 @@
 //                                     HYDRO dv_a/dt ~ - (p_a+p_b)/(rho_a*rho_b)  \nabla_a W_ab
 //                                     SOLID dv_a/dt ~ (sigma_a+sigma_b)/(rho_a*rho_b)  \nabla_a W_ab
 // If you do not know what to do, choose SPH_EQU_VERSION 1.
+
 #define SPH_EQU_VERSION 1
 
 // for the tensile instability fix
@@ -107,8 +108,8 @@
 // for linear consistency
 // add tensorial correction tensor to dSdt calculation -> better conservation of angular momentum
 // please check the first lines of kernel.cu to choose the approach for linear consistency if your simulation outcomes look strange (USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME is the default and should provide the best results, though)
-// Use SPH_EQU_VERSION 1 for full liner consistency but symmetry breaking
-// Use SPH_EQU_VERSION 2 for only partial linear consistency but symmetry preserved
+// Use SPH_EQU_VERSION 1 for full liner consistency, symmetry broken 
+// Use SPH_EQU_VERSION 2 alternate approach, breaks full linear consistency, but is more stable for some cases (e.g., low-density states)
 #define TENSORIAL_CORRECTION 1
 
 // Apply the tensorial correction also to the velocity gradient in the continuity equation.

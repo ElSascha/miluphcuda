@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16384
 #SBATCH --gres=gpu:1
-#SBATCH --time=20:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=%x_%j.out   # Separates Log pro Job-Ausführung
 #SBATCH --error=%x_%j.err    # Separates Error-Log pro Job-Ausführung
 

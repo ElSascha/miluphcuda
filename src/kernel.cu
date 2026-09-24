@@ -44,8 +44,8 @@
 // Additional safety: even if the moment matrix is formally full-rank, it can be
 // extremely ill-conditioned near free surfaces/contact, producing a huge inverse
 // and injecting unphysical torque. Clamp overly large correction matrices.
-// 5.0 seems like an appropriate value, but you can play around with this for sure.
-#define MAX_ABS_TENSORIAL_CORRECTION_ENTRY 50.0
+// This is a soft clamp, so that the gradient direction is not destroyed abruptly.
+#define MAX_ABS_TENSORIAL_CORRECTION_ENTRY 30.0
 
 
 
@@ -628,37 +628,35 @@ __global__ void tensorialCorrection(int *interactions)
         } // end loop over interaction partners
 
 #if USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME
-        // invert the moment matrix (corrmatrix) into matrix
+        // Invert the moment matrix (corrmatrix) into matrix via SVD
         rv = invert_svd(corrmatrix, matrix, 1e-8);
 
-
-        // revert to identity if matrix is ill-conditioned
-        #if DIM == 2
-        double det = matrix[0]*matrix[3] - matrix[1]*matrix[2];
-        #elif DIM == 3
-        double det = matrix[0]*(matrix[4]*matrix[8]-matrix[5]*matrix[7])
-                - matrix[1]*(matrix[3]*matrix[8]-matrix[5]*matrix[6])
-                + matrix[2]*(matrix[3]*matrix[7]-matrix[4]*matrix[6]);
-        #endif
-
-        // check for ill-conditioning
+        // Find maximum entry (gradient amplification factor)
         double max_entry = 0.0;
         for (d = 0; d < DIM*DIM; d++) {
             max_entry = fmax(max_entry, fabs(matrix[d]));
         }
-        // rv < DIM means invert_svd already discarded at least one eigenvalue as
-        // unreliable (rank-deficient moment matrix) -- a more direct signal than
-        // det/max_entry alone, since det is a product of all eigenvalues and can
-        // mask a single bad direction that rv catches immediately.
-        // these values are just best practice... change if required and you know what you're doing
-        if (rv < DIM || fabs(det) < 1e-4 || fabs(det) > 3000.0 || max_entry > MAX_ABS_TENSORIAL_CORRECTION_ENTRY) {
-    for (d = 0; d < DIM*DIM; d++)
-        matrix[d] = (double)(d % (DIM+1) == 0); // identity
-        
-#if DEBUG_DEVEL
-            printf("Warning: tensorial correction matrix for particle %d is ill-conditioned, determinant = %g, rv = %d, max_entry = %lf. Setting to identity.\n", i, det, rv, max_entry);
-#endif
+
+        // 1. HARD FALLBACK: Rank-deficient matrix, or NaN/Inf entries
+        // rv < DIM means that the moment matrix is rank-deficient, which happens 
+        //when there are too few interaction partners or when the particle has been discarded 
+    
+        if (rv < DIM || isnan(max_entry) || isinf(max_entry)) {
+            for (d = 0; d < DIM*DIM; d++) {
+                matrix[d] = (double)(d % (DIM+1) == 0); // Identity
+            }
+        } 
+        // 2. SOFT CLAMPING: Matrix is full-rank but has entries that are too large, which can inject unphysical torque
+        else if (max_entry > MAX_ABS_TENSORIAL_CORRECTION_ENTRY) {
+            // Continuously blend the matrix with the identity matrix 
+            // to avoid destroying the computed gradient direction abruptly.
+            double blend = MAX_ABS_TENSORIAL_CORRECTION_ENTRY / max_entry;
+            for (d = 0; d < DIM*DIM; d++) {
+                double identity_val = (double)(d % (DIM+1) == 0);
+                matrix[d] = blend * matrix[d] + (1.0 - blend) * identity_val;
+            }
         }
+        // 3. NORMAL CASE Matrix is full-rank and well-conditioned, use it as is.
 #elif USE_WEIGHTED_KERNEL_GRADIENT_CORRECTION_SCHEME // following Ren et al. https://arxiv.org/abs/2304.14865
         // invert the moment matrix (corrmatrix) into matrix
         rv = invert_svd(corrmatrix, matrix, 1e-8);

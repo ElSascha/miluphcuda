@@ -87,14 +87,14 @@
 //                                     HYDRO dv_a/dt ~ - (p_a+p_b)/(rho_a*rho_b)  \nabla_a W_ab
 //                                     SOLID dv_a/dt ~ (sigma_a+sigma_b)/(rho_a*rho_b)  \nabla_a W_ab
 // If you do not know what to do, choose SPH_EQU_VERSION 1.
-#define SPH_EQU_VERSION 2
+#define SPH_EQU_VERSION 1
 
 // for the tensile instability fix
 // you do not need this
 #define ARTIFICIAL_STRESS 0
 
 // standard SPH alpha/beta viscosity
-#define ARTIFICIAL_VISCOSITY 1
+#define ARTIFICIAL_VISCOSITY 0
 // Balsara switch: lowers the artificial viscosity in regions without shocks
 #define BALSARA_SWITCH 0
 

@@ -372,15 +372,15 @@ __global__ void internalForces(int *interactions) {
 #endif
 
 #if TENSORIAL_CORRECTION
-            // Pre-compute corrected gradients for forces
+            // Pre-compute corrected gradients for forces (B * grad W)
             double dWdx_corr_i[DIM];
             double dWdx_corr_j[DIM];
             for (d = 0; d < DIM; d++) {
                 dWdx_corr_i[d] = 0.0;
                 dWdx_corr_j[d] = 0.0;
                 for (dd = 0; dd < DIM; dd++) {
-                     dWdx_corr_i[d] += p_rhs.tensorialCorrectionMatrix[i*DIM*DIM + dd*DIM + d] * dWdx[dd];
-                     dWdx_corr_j[d] += p_rhs.tensorialCorrectionMatrix[j*DIM*DIM + dd*DIM + d] * dWdx[dd];
+                     dWdx_corr_i[d] += p_rhs.tensorialCorrectionMatrix[i*DIM*DIM + d*DIM + dd] * dWdx[dd];
+                     dWdx_corr_j[d] += p_rhs.tensorialCorrectionMatrix[j*DIM*DIM + d*DIM + dd] * dWdx[dd];
                 }
             }
 # if TENSORIAL_CORRECTION_FOR_DRHODT
@@ -455,9 +455,9 @@ __global__ void internalForces(int *interactions) {
                 // consistent with reproducing 1st-order velocity gradients at particle i
                 for (e = 0; e < DIM; e++) {
                     for (f = 0; f < DIM; f++) {
-                        edot[e][f] += 0.5 * p.m[j]/p.rho[j] *
+                        edot[e][f] += 0.5 * p.m[j]/p.rho[i] *
                             (dWdx_corr_i[f] * (-dv[e]) + dWdx_corr_i[e] * (-dv[f]));
-                        rdot[e][f] += 0.5 * p.m[j]/p.rho[j] *
+                        rdot[e][f] += 0.5 * p.m[j]/p.rho[i] *
                             (dWdx_corr_i[f] * (-dv[e]) - dWdx_corr_i[e] * (-dv[f]));
                     }
                 }
@@ -765,26 +765,11 @@ __global__ void internalForces(int *interactions) {
 #if INTEGRATE_ENERGY
 # if ARTIFICIAL_VISCOSITY
             if (!isRelaxationRun) {
-#  if TENSORIAL_CORRECTION
-                double vvnablaW_corr = 0.0;
-                // use average of corrected gradients for symmetry
-                for (d = 0; d < DIM; d++) {
-                    vvnablaW_corr += dv[d] * 0.5 * (dWdx_corr_i[d] + dWdx_corr_j[d]);
-                }
-#  endif
-#  if TENSORIAL_CORRECTION
-#   if SML_CORRECTION
-                dedt += p.m[j] * vvnablaW_corr;
-#   else
-                dedt += 0.5 * p.m[j] * pij * vvnablaW_corr;
-#   endif
-#  else
-#   if SML_CORRECTION
+#  if SML_CORRECTION
                 dedt += p.m[j] * vvnablaW;
-#   else
+#  else
                 dedt += 0.5 * p.m[j] * pij * vvnablaW;
-#   endif // SML_CORRECTION
-#  endif // TENSORIAL_CORRECTION
+#  endif
             }
 # endif
 

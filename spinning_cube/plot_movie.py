@@ -2,6 +2,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import os
+import shutil
 import subprocess
 import matplotlib
 matplotlib.use('Agg')
@@ -86,7 +87,7 @@ for frame_idx, particle_file in enumerate(particle_files):
 
     fig = plt.figure(figsize=(12, 12)) # Use a square figure for better aspect ratio
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=1)
+    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=100)
     ax.set_title(f'Particle velocity at t = {frame_idx * time_step_size:.3f} s', fontsize=50)
     ax.set_xlabel('X (m)', fontsize=45, labelpad=60)
     ax.set_ylabel('Y (m)', fontsize=45, labelpad=60)
@@ -115,7 +116,8 @@ for frame_idx, particle_file in enumerate(particle_files):
     plt.savefig(frame_filename, dpi=80, bbox_inches='tight', pad_inches=1.0)
     plt.close(fig)
     
-    # optimize the png
-    subprocess.run(["pngquant", "--quality=60-80", "--ext", ".png", "--force", frame_filename])
+    # Optimize the PNG when pngquant is installed.
+    if shutil.which("pngquant"):
+        subprocess.run(["pngquant", "--quality=60-80", "--ext", ".png", "--force", frame_filename], check=True)
 
 print(f'Generated {len(particle_files)} frames in directory: {output_dir}')

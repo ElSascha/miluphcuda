@@ -31,3 +31,4 @@ module load lib/hdf5/1.12-gnu-11.4
 # run the code
 
 ../build/miluphcuda -A -f data/particles.0000 -g -H -I rk2_adaptive -m materials/material.cfg -n 300 -M 1e-5 -t 0.033
+ #>> output.txt 2> error.txt

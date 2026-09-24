@@ -45,7 +45,7 @@
 
 // integrate the energy equation
 // when setting up a SOLID simulation with Tillotson or ANEOS, it must be set to 1
-#define INTEGRATE_ENERGY 1
+#define INTEGRATE_ENERGY 0
 
 // integrate the continuity equation
 // if set to 0, the density will be calculated using the standard SPH sum \sum_i m_j W_ij
@@ -94,7 +94,7 @@
 #define ARTIFICIAL_STRESS 0
 
 // standard SPH alpha/beta viscosity
-#define ARTIFICIAL_VISCOSITY 1
+#define ARTIFICIAL_VISCOSITY 0
 // Balsara switch: lowers the artificial viscosity in regions without shocks
 #define BALSARA_SWITCH 0
 

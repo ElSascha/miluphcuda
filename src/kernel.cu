@@ -651,13 +651,14 @@ __global__ void tensorialCorrection(int *interactions)
         // det/max_entry alone, since det is a product of all eigenvalues and can
         // mask a single bad direction that rv catches immediately.
         // these values are just best practice... change if required and you know what you're doing
-        if (rv < DIM || fabs(det) < 1e-5 || fabs(det) > 5000.0 || max_entry > MAX_ABS_TENSORIAL_CORRECTION_ENTRY) {
+        if (rv < DIM || fabs(det) < 1e-4 || fabs(det) > 3000.0 || max_entry > MAX_ABS_TENSORIAL_CORRECTION_ENTRY) {
     for (d = 0; d < DIM*DIM; d++)
         matrix[d] = (double)(d % (DIM+1) == 0); // identity
-        }
+        
 #if DEBUG_DEVEL
             printf("Warning: tensorial correction matrix for particle %d is ill-conditioned, determinant = %g, rv = %d, max_entry = %lf. Setting to identity.\n", i, det, rv, max_entry);
 #endif
+        }
 #elif USE_WEIGHTED_KERNEL_GRADIENT_CORRECTION_SCHEME // following Ren et al. https://arxiv.org/abs/2304.14865
         // invert the moment matrix (corrmatrix) into matrix
         rv = invert_svd(corrmatrix, matrix, 1e-8);

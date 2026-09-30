@@ -52,7 +52,7 @@ def create_cube_distribution(n_particles_per_side, size, filename, rho_solid, om
         velocities,
         np.full(n_particles, mass),
         np.full(n_particles, density),
-        np.full(n_particles, energy),
+        #np.full(n_particles, energy),
         np.full(n_particles, smoothing_length),
         np.full(n_particles, material_type),
         S_sigma
@@ -66,5 +66,6 @@ def create_cube_distribution(n_particles_per_side, size, filename, rho_solid, om
 
 if __name__ == "__main__":
     # rho_solid should match till_rho_0 in material.cfg for Tillotson.
-    create_cube_distribution(40, 1.0, r'data/particles.0000', rho_solid=7.874e3, omega=2.0)
+    create_cube_distribution(50, 1.0, r'data_iron/particles.0000', rho_solid=7.874e3, omega=2.0)
+    print("Created ", 50**3, "particles")
     

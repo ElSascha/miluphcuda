@@ -15,7 +15,7 @@ The plot is saved to a file named 'angular_momentum_conservation.png'.
 """
 
 # Load the conserved quantities log file
-log_file = 'conserved_quantities.log'
+log_file = 'conserved_quantities_iron_corr.log'
 if not os.path.exists(log_file):
     raise FileNotFoundError(f'Log file {log_file} not found.')
 column_names = [

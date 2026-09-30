@@ -5,7 +5,7 @@ import numpy as np
 # =========================
 radius = 1.0
 dx = 0.07
-density = 2.86e3
+density = 7.874e3
 collision_velocity = 1.0
 
 m = density * dx**3
@@ -52,12 +52,14 @@ v2[:, 0] = -collision_velocity / 2.0
 # =========================
 mass = np.full(npart, m)
 rho = np.full(npart, density)
-material = np.zeros(npart, dtype=int)
-smoothing_length = np.full(npart, dx * 3.8) # Wendland c2 kernel support radius is 1.866 * dx for 3D, so this ensures that each particle has neighbors to interact with
+material = np.ones(npart, dtype=int)
+energy = np.zeros(npart)
+smoothing_length = np.full(npart, dx * 2.1) # Bspline Kernel 
 stress = np.zeros((npart, 9))
 
 p1 = np.c_[x1, v1, mass, rho, smoothing_length, material,  stress]
 p2 = np.c_[x2, v2, mass, rho, smoothing_length, material, stress]
 
 particles = np.vstack((p1, p2))
-np.savetxt("data/balls.0000", particles)
+np.savetxt("data_iron_corr/balls.0000", particles)
+print(f"Saved {len(particles)} particles")

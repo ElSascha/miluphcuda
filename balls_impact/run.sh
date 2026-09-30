@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=balls_impact_basalt
+#SBATCH --job-name=iron_impact_corr
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16384
 #SBATCH --gres=gpu:1
-#SBATCH --time=05:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=%x.out   # Separates Log pro Job-Ausführung
 #SBATCH --error=%x.err    # Separates Error-Log pro Job-Ausführung
 
@@ -30,4 +30,4 @@ module load lib/hdf5/1.12-gnu-11.4
 
 # run the code
 
-../build/miluphcuda -A -f data/balls.0000 -g -H -I rk2_adaptive -m materials/material.cfg -n 300 -M 1e-5 -t 0.033
+../build/miluphcuda -A -c conserved_quantities_iron_corr.log -f data_iron_corr/balls.0000 -g -H -I rk2_adaptive -m materials/material_list.cfg -n 900 -M 1e-5 -t 0.033

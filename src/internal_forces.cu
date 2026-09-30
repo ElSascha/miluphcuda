@@ -450,6 +450,7 @@ __global__ void internalForces(int *interactions) {
                         if (EOS_TYPE_VISCOUS_REGOLITH != matEOS[matId]) {
                 //printf("%d\n", boundia);
                 tmp = p.m[j];
+
 # if TENSORIAL_CORRECTION
                 // non-averaged: use particle i's own correction matrix only,
                 // consistent with reproducing 1st-order velocity gradients at particle i
@@ -461,7 +462,6 @@ __global__ void internalForces(int *interactions) {
                             (dWdx_corr_i[f] * (-dv[e]) - dWdx_corr_i[e] * (-dv[f]));
                     }
                 }
-
 # else // NOT TENSORIAL_CORRECTION
                 tmp = -0.5*tmp/p.rho[i];
                 edot[0][0] += tmp*(dvx*dWdx[0] + dvx*dWdx[0]);

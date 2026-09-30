@@ -400,25 +400,39 @@ __device__ int invert_svd(double *m, double *inverted, double threshold_svd) {
         }
     }
 #elif USE_ONLY_RELIABLE_EIGENVALUES
-    // compute sigma_max = largest eigenvalue to form a relative threshold
     double sigma_max = 0.0;
     for (k = 0; k < DIM; k++)
         sigma_max = fmax(sigma_max, fabs(eigenvalues[k]));
 
-    // relative threshold: discard eigenvalues smaller than eps * sigma_max
-    double rel_threshold = threshold_svd * sigma_max;
+    // Define relative thresholds for eigenvalue reliability
+    // Eigenvalues below rel_low * sigma_max are considered unreliable and ignored.
+    // Eigenvalues above rel_high * sigma_max are considered reliable and fully used.
+    // Eigenvalues in between are blended linearly.
+    // This approach allows for a smooth transition between ignoring and fully using eigenvalues based on their relative magnitude.
+    // The choice of rel_low and rel_high can be tuned based on the specific application and the expected range of eigenvalues.
+    const double rel_low  = 1e-3;
+    const double rel_high = 1e-1;
 
     for (k = 0; k < DIM; k++) {
         double ev = eigenvalues[k];
-        if (fabs(ev) > rel_threshold) {
-            used_eigenvalues++;
-            double inv_ev = 1.0 / ev;
-            for (i = 0; i < DIM; i++) {
-                for (j = 0; j < DIM; j++) {
-                    P[i][j] += inv_ev * V[i][k] * V[j][k];
-                }
-            }
+        double rel = (sigma_max > 0.0) ? fabs(ev) / sigma_max : 0.0;
+
+        double w;
+        if (rel <= rel_low) {
+            w = 0.0;
+        } else if (rel >= rel_high) {
+            w = 1.0;
+        } else {
+            w = (rel - rel_low) / (rel_high - rel_low);
         }
+        if (w > 0.0) used_eigenvalues++;
+
+        double inv_ev_full = (fabs(ev) > 0.0) ? 1.0/ev : 0.0;
+        double inv_ev_blended = w * inv_ev_full + (1.0 - w) * 1.0;
+
+        for (i = 0; i < DIM; i++)
+            for (j = 0; j < DIM; j++)
+                P[i][j] += inv_ev_blended * V[i][k] * V[j][k];
     }
 #else
 #error choose between USE_ALL_EIGENVALUES or USE_ONLY_RELIABLE_EIGENVALUES in linalg.cu

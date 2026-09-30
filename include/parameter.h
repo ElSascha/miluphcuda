@@ -95,9 +95,9 @@
 #define ARTIFICIAL_STRESS 0
 
 // standard SPH alpha/beta viscosity
-#define ARTIFICIAL_VISCOSITY 0
+#define ARTIFICIAL_VISCOSITY 1
 // Balsara switch: lowers the artificial viscosity in regions without shocks
-#define BALSARA_SWITCH 0
+#define BALSARA_SWITCH 1
 
 // INVISCID SPH (see Cullen & Dehnen paper)
 #define INVISCID_SPH 0
@@ -108,10 +108,7 @@
 // for linear consistency
 // add tensorial correction tensor to dSdt calculation -> better conservation of angular momentum
 // please check the first lines of kernel.cu to choose the approach for linear consistency if your simulation outcomes look strange (USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME is the default and should provide the best results, though)
-// Use SPH_EQU_VERSION 1 for full liner consistency, symmetry broken 
-// Use SPH_EQU_VERSION 2 alternate approach, breaks full linear consistency, but is more stable for some cases (e.g., low-density states)
 #define TENSORIAL_CORRECTION 1
-
 // Apply the tensorial correction also to the velocity gradient in the continuity equation.
 // Set to 0 to use the raw kernel gradient for drhodt while keeping the correction in the
 // momentum equation and in dSdt.

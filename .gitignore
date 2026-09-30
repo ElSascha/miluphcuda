@@ -76,3 +76,7 @@ miluphcuda
 *.png
 *.txt
 *.log
+*.vtp
+*.mp4
+*.sh
+*.pvd

@@ -563,8 +563,9 @@ __global__ void shepardCorrection(int *interactions) {
 #endif
 
 
-#if TENSORIAL_CORRECTION
 
+#if TENSORIAL_CORRECTION
+// this adds first order consistency but needs one more loop over all neighbours
 __global__ void tensorialCorrection(int *interactions)
 {
     register int64_t interactions_index;
@@ -605,6 +606,8 @@ __global__ void tensorialCorrection(int *interactions)
 #elif DIM == 2
             r = sqrt(dr[0]*dr[0]+dr[1]*dr[1]);
 #endif
+#else
+            r = fabs(dr[0]);
 #endif
 
 #if AVERAGE_KERNELS
@@ -628,35 +631,21 @@ __global__ void tensorialCorrection(int *interactions)
         } // end loop over interaction partners
 
 #if USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME
-        // Invert the moment matrix (corrmatrix) into matrix via SVD
         rv = invert_svd(corrmatrix, matrix, 1e-8);
 
-        // Find maximum entry (gradient amplification factor)
         double max_entry = 0.0;
         for (d = 0; d < DIM*DIM; d++) {
             max_entry = fmax(max_entry, fabs(matrix[d]));
         }
 
-        // 1. HARD FALLBACK: Rank-deficient matrix, or NaN/Inf entries
-        // rv < DIM means that the moment matrix is rank-deficient, which happens 
-        //when there are too few interaction partners or when the particle has been discarded 
-    
-        if (rv < DIM || isnan(max_entry) || isinf(max_entry)) {
-            for (d = 0; d < DIM*DIM; d++) {
-                matrix[d] = (double)(d % (DIM+1) == 0); // Identity
-            }
-        } 
-        // 2. SOFT CLAMPING: Matrix is full-rank but has entries that are too large, which can inject unphysical torque
-        else if (max_entry > MAX_ABS_TENSORIAL_CORRECTION_ENTRY) {
-            // Continuously blend the matrix with the identity matrix 
-            // to avoid destroying the computed gradient direction abruptly.
-            double blend = MAX_ABS_TENSORIAL_CORRECTION_ENTRY / max_entry;
-            for (d = 0; d < DIM*DIM; d++) {
-                double identity_val = (double)(d % (DIM+1) == 0);
-                matrix[d] = blend * matrix[d] + (1.0 - blend) * identity_val;
-            }
+        // if the matrix is rank-deficient or ill-conditioned, fall back to identity
+        // this is a hard fallback, but it is better than producing unphysical torque
+        // the threshold is arbitrary, but it should be small enough to catch ill-conditioned matrices
+        if (isnan(max_entry) || isinf(max_entry) || rv == 0) {
+            for (d = 0; d < DIM*DIM; d++)
+                matrix[d] = (double)(d % (DIM+1) == 0);
         }
-        // 3. NORMAL CASE Matrix is full-rank and well-conditioned, use it as is.
+
 #elif USE_WEIGHTED_KERNEL_GRADIENT_CORRECTION_SCHEME // following Ren et al. https://arxiv.org/abs/2304.14865
         // invert the moment matrix (corrmatrix) into matrix
         rv = invert_svd(corrmatrix, matrix, 1e-8);

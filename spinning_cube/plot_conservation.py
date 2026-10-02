@@ -15,7 +15,7 @@ The plot is saved to a file named 'angular_momentum_conservation.png'.
 """
 
 # Load the conserved quantities log file
-log_file = 'conserved_quantities.log'
+log_file = 'conserved_quantaties_basalt_corr_vonmises.log'
 if not os.path.exists(log_file):
     raise FileNotFoundError(f'Log file {log_file} not found.')
 column_names = [
@@ -27,12 +27,9 @@ column_names = [
 ]
 data = pd.read_csv(log_file, sep='\s+', comment='#', names=column_names)
 time = data['time']
-Lx = data['total-angular-mom[x]']
-Ly = data['total-angular-mom[y]']
-Lz = data['total-angular-mom[z]']
-L_magnitude = (Lx**2 + Ly**2 + Lz**2)**0.5
-L_initial = L_magnitude.iloc[1]
-L_deviation = abs(L_initial - L_magnitude) / abs(L_initial)
+L_0 = data['total-angular-mom'][0]
+L_step = data['total-angular-mom']
+L_deviation = abs(L_0 - L_step) / abs(L_0)
 # Create the plot
 fig, ax1 = plt.subplots(figsize=(10, 6))
 ax1.plot(time, L_deviation, label='|L_initial - L_step| / |L_initial|')

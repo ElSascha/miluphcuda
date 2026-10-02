@@ -28,7 +28,7 @@ def _infer_spacing(coords):
 
 # Create output directory for frames
 script_dir = os.path.dirname(os.path.realpath(__file__))
-data_dir = os.path.join(script_dir, 'data')
+data_dir = os.path.join(script_dir, 'data_small_iron')
 output_dir = os.path.join(script_dir, 'movie_frames')
 os.makedirs(output_dir, exist_ok=True)
 # Find all HDF5 particle files
@@ -78,14 +78,14 @@ for frame_idx, particle_file in enumerate(particle_files):
     y = pos[:, 1]
     z = pos[:, 2]
 
-    time_step_size = 0.033 # assuming constant time step size; adjust as needed
+    time_step_size = 1.0 # assuming constant time step size; adjust as needed
 
     colors = np.linalg.norm(vel, axis=1)
     color_label = 'Velocity magnitude (m/s)'
 
     fig = plt.figure(figsize=(12, 12)) # Use a square figure for better aspect ratio
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=10)
+    sc = ax.scatter(x, y, z, c=colors, cmap='viridis', s=500)
     
     # Increased font sizes for small subplot usage
     ax.set_title(f'Particle velocity at t = {frame_idx * time_step_size:.3f} s', fontsize=30)

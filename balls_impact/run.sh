@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=iron_impact_corr
+#SBATCH --job-name=basalt_impact_sml_23
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -30,4 +30,4 @@ module load lib/hdf5/1.12-gnu-11.4
 
 # run the code
 
-../build/miluphcuda -A -c conserved_quantities_iron_corr.log -f data_iron_corr/balls.0000 -g -H -I rk2_adaptive -m materials/material_list.cfg -n 900 -M 1e-5 -t 0.033
+../build/miluphcuda -A -c conserved_quantities_basalt_corr_sml_23.log -f data_basalt_corr_sml_23/balls.0000 -g -H -I rk2_adaptive -m materials/material_list.cfg -n 900 -M 1e-5 -t 0.033

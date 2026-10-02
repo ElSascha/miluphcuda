@@ -41,7 +41,7 @@ def create_cube_distribution(n_particles_per_side, size, filename, rho_solid, al
     density = rho_bulk
     energy = 0.0
     material_type = 0
-    smoothing_length = spacing * 2.4  # typical choice for initial smoothing length
+    smoothing_length = spacing * 4.0  # typical choice for initial smoothing length
     S_sigma = np.zeros((n_particles, 9))  # 3x3 stress tensor flattened
     pressure = 0.0
     # Combine all data into one array
@@ -64,5 +64,5 @@ def create_cube_distribution(n_particles_per_side, size, filename, rho_solid, al
 
 if __name__ == "__main__":
     # rho_solid should match till_rho_0 in material.cfg for Tillotson.
-    create_cube_distribution(40, 1.0, r'data/particles.0000', rho_solid=2.86e3, alpha_jutzi=1, omega=2.0)
+    create_cube_distribution(25, 1.0, r'data_basalt_corr/particles.0000', rho_solid=2.86e3, alpha_jutzi=1, omega=2.0)
     

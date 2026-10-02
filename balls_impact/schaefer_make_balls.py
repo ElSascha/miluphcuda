@@ -1,11 +1,15 @@
 import numpy as np
+import os
 
 # =========================
 # Setup
 # =========================
+dir_name = "data_basalt_corr_sml_23"
+file_name = "balls.0000"
+
 radius = 1.0
 dx = 0.07
-density = 7.874e3
+density = 2.86e3
 collision_velocity = 1.0
 
 m = density * dx**3
@@ -52,14 +56,16 @@ v2[:, 0] = -collision_velocity / 2.0
 # =========================
 mass = np.full(npart, m)
 rho = np.full(npart, density)
-material = np.ones(npart, dtype=int)
+material = np.zeros(npart, dtype=int)
 energy = np.zeros(npart)
-smoothing_length = np.full(npart, dx * 2.1) # Bspline Kernel 
+smoothing_length = np.full(npart, dx * 2.3) # Bspline Kernel 
 stress = np.zeros((npart, 9))
 
 p1 = np.c_[x1, v1, mass, rho, smoothing_length, material,  stress]
 p2 = np.c_[x2, v2, mass, rho, smoothing_length, material, stress]
 
 particles = np.vstack((p1, p2))
-np.savetxt("data_iron_corr/balls.0000", particles)
+# check if directory exists, if not create it
+os.makedirs(dir_name, exist_ok=True)
+np.savetxt(f"{dir_name}/{file_name}", particles)
 print(f"Saved {len(particles)} particles")

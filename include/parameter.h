@@ -95,9 +95,9 @@
 #define ARTIFICIAL_STRESS 0
 
 // standard SPH alpha/beta viscosity
-#define ARTIFICIAL_VISCOSITY 1
+#define ARTIFICIAL_VISCOSITY 0
 // Balsara switch: lowers the artificial viscosity in regions without shocks
-#define BALSARA_SWITCH 1
+#define BALSARA_SWITCH 0
 
 // INVISCID SPH (see Cullen & Dehnen paper)
 #define INVISCID_SPH 0
@@ -202,7 +202,7 @@
 // max number of activation thresholds per particle, only required for FRAGMENTATION, otherwise set to 1
 #define MAX_NUM_FLAWS 1
 // maximum number of interactions per particle -> fixed array size
-#define MAX_NUM_INTERACTIONS 256
+#define MAX_NUM_INTERACTIONS 400
 
 // if VARIABLE_SML is set, the smoothing length (sml) is not fixed in time - choose either:
 //   FIXED_NOI for a fixed number of interaction partners, following the ansatz by Hernquist & Katz (1989)

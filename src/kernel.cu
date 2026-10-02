@@ -448,10 +448,10 @@ __global__ void CalcDivvandCurlv(int *interactions)
             for (d = 0; d < DIM; d++) {
 #if TENSORIAL_CORRECTION
                 for (dd = 0; dd < DIM; dd++) {
-                    divv += p.m[j]/p.rho[j] * (vj[d] - vi[d]) * p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d*DIM+dd] * dWdx[dd];
+                    divv += p.m[j]/p.rho[i] * (vj[d] - vi[d]) * p_rhs.tensorialCorrectionMatrix[i*DIM*DIM+d*DIM+dd] * dWdx[dd];
                 }
 #else
-                divv += p.m[j]/p.rho[j] * (vj[d] - vi[d]) * dWdx[d];
+                divv += p.m[j]/p.rho[i] * (vj[d] - vi[d]) * dWdx[d];
 #endif
 
             }
@@ -625,10 +625,10 @@ __global__ void tensorialCorrection(int *interactions)
 
             for (d = 0; d < DIM; d++) {
                 for (dd = 0; dd < DIM; dd++) {
-                    corrmatrix[d*DIM+dd] -= p.m[j]/p.rho[j] * dr[d] * dWdx[dd];
+                    corrmatrix[d*DIM+dd] -= p.m[j]/p.rho[j] * dr[d] * dWdx[dd]; // rho[i] too match rdot edot 
                 }
             }
-        } // end loop over interaction partners
+        } // end loop over interaction partners 
 
 #if USE_OLDSCHOOL_KERNEL_GRADIENT_CORRECTION_SCHEME
         rv = invert_svd(corrmatrix, matrix, 1e-8);
@@ -642,8 +642,10 @@ __global__ void tensorialCorrection(int *interactions)
         // this is a hard fallback, but it is better than producing unphysical torque
         // the threshold is arbitrary, but it should be small enough to catch ill-conditioned matrices
         if (isnan(max_entry) || isinf(max_entry) || rv == 0) {
-            for (d = 0; d < DIM*DIM; d++)
-                matrix[d] = (double)(d % (DIM+1) == 0);
+            for (d = 0; d < DIM*DIM; d++) {
+                double w = fmin(1.0, MAX_ABS_TENSORIAL_CORRECTION_ENTRY / max_entry);
+                matrix[d] = w * matrix[d] + (1.0 - w) * (double)(d % (DIM+1) == 0);
+            }
         }
 
 #elif USE_WEIGHTED_KERNEL_GRADIENT_CORRECTION_SCHEME // following Ren et al. https://arxiv.org/abs/2304.14865

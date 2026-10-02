@@ -5,11 +5,11 @@ import sys, glob, os
 import numpy as np, h5py, pyvista as pv
 
 d = sys.argv[1] if len(sys.argv) > 1 else "."
-out = os.path.join(d, "data_iron_cube_corr_vtk")
+out = os.path.join(d, "data_basalt_corr_vonmises_vtk")
 os.makedirs(out, exist_ok=True)
 entries = []
 
-for path in sorted(glob.glob(os.path.join(d, "data/*.h5"))):
+for path in sorted(glob.glob(os.path.join(d, "data_basalt_corr_vonmises/*.h5"))):
     base = os.path.splitext(os.path.basename(path))[0]
     with h5py.File(path, "r") as f:
         x = np.asarray(f["x"], dtype=np.float64)
